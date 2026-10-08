@@ -50,7 +50,7 @@ const DADOS = process.env.ELLY_DADOS || path.join(BASE, 'dados');
 const FOTOS = path.join(DADOS, 'fotos');
 const CAPAS = path.join(DADOS, 'capas');
 
-const PORTA = process.env.PORT || 3000;
+const PORTA = parseInt(process.env.PORT, 10) || 3000;
 const WHATSAPP_FOTOGRAFO = process.env.WHATSAPP_NUMERO || process.env.WHATSAPP_FOTOGRAFO || '244900000000';
 
 /* Configurações do Cloudflare R2 */
@@ -1175,7 +1175,7 @@ app.use(['/api', '/elifotografo/api', '/eli-fotografo/api'], api);
 
 /* ---------------- arranque ---------------- */
 
-app.listen(PORTA, () => {
+app.listen(PORTA, '0.0.0.0', () => {
   console.log('Elly Fotografo em http://localhost:' + PORTA);
   console.log('  landing    → http://localhost:' + PORTA + '/');
   console.log('  backoffice → http://localhost:' + PORTA + '/login');
