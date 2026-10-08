@@ -627,57 +627,26 @@ button { font: inherit; }
   .conta { font-size: 14px; }
   .conta b { font-size: 16px; }
 
-  /* Visor em Mobile */
-  .visor-topo {
-    height: 50px;
-    padding: 0 12px;
-  }
-  .vbtn-fechar {
-    width: 36px;
-    height: 36px;
-    padding: 0;
-    border-radius: 50%;
-  }
-  .vbtn-fechar .txt-fechar { display: none; }
-  .visor-contador {
-    font-size: 12px;
-    padding: 4px 10px;
-  }
+  /* Visor em Mobile: tela cheia — só fica o botão inferior de selecionar.
+     Fecha-se arrastando a foto para baixo (sem texto a explicar). */
+  .visor-topo { display: none; }
+  .visor .seta { display: none !important; }
+  .vcoracao-topo-dir { display: none !important; }
+  .vlinha-nome, .vextras, #vLim { display: none; }
 
   .visor-centro {
-    padding: 4px 6px;
-    height: calc(100% - 110px);
+    height: auto;
+    padding: 0;
+    touch-action: none;
   }
   #vImg {
-    max-height: calc(100vh - 120px);
-    max-height: calc(100dvh - 120px);
+    max-height: calc(100dvh - 170px);
     max-width: 100%;
     width: auto !important;
     height: auto !important;
     object-fit: contain !important;
     aspect-ratio: auto !important;
-  }
-
-  /* Setas em Mobile: Ambas (esquerda e direita) garantidamente visíveis */
-  .seta {
-    width: 42px;
-    height: 42px;
-    background: rgba(14, 14, 18, 0.92);
-    border: 1.5px solid rgba(255, 255, 255, 0.35);
-    color: #fff;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
-    z-index: 100 !important;
-    display: flex !important;
-  }
-  .seta svg {
-    width: 20px;
-    height: 20px;
-  }
-  .seta.esq {
-    left: max(8px, env(safe-area-inset-left, 8px)) !important;
-  }
-  .seta.dir {
-    right: max(8px, env(safe-area-inset-right, 8px)) !important;
+    border-radius: 0;
   }
 
   .visor-pe {
@@ -692,14 +661,6 @@ button { font: inherit; }
     font-size: 15px;
     background: rgba(255, 255, 255, 0.16);
     border: 1.5px solid rgba(255, 255, 255, 0.35);
-  }
-  .vcoracao-topo-dir {
-    width: 42px;
-    height: 42px;
-  }
-  .vlinha-nome {
-    font-size: 12px;
-    max-width: 90vw;
   }
 
   .resumo-acoes .btn { flex: 1 1 100%; }

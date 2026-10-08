@@ -51,7 +51,7 @@ const FOTOS = path.join(DADOS, 'fotos');
 const CAPAS = path.join(DADOS, 'capas');
 
 const PORTA = parseInt(process.env.PORT, 10) || 3000;
-const WHATSAPP_FOTOGRAFO = process.env.WHATSAPP_NUMERO || process.env.WHATSAPP_FOTOGRAFO || '244900000000';
+const WHATSAPP_FOTOGRAFO = normalizarWhats(process.env.WHATSAPP_NUMERO || process.env.WHATSAPP_FOTOGRAFO) || '244900000000';
 
 /* Configurações do Cloudflare R2 */
 const r2AccountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
@@ -587,6 +587,17 @@ function slugDe(texto) {
 
 function digitos(v) { return String(v || '').replace(/\D/g, ''); }
 
+/* forma canónica de WhatsApp: só dígitos, com indicativo. Angola = 244 +
+   9 dígitos de móvel (9XXXXXXXX). Vale para o que o fotógrafo grava E para
+   o que o cliente digita no login — por isso o login nunca falha por causa
+   de formato (com/sem indicativo, espaços, traços). */
+function normalizarWhats(v) {
+  const d = String(v || '').replace(/\D/g, '');
+  if (/^244\d{9}$/.test(d)) return d;
+  if (/^9\d{8}$/.test(d)) return '244' + d;
+  return d;
+}
+
 function guardaImagem(dataUrl, destino) {
   const m = /^data:image\/(png|jpe?g|webp|gif|avif);base64,(.+)$/i.exec(dataUrl || '');
   if (!m) return null;
@@ -762,16 +773,16 @@ function clienteDe(g) {
 /* cliente é uma entidade própria: pode ter várias galerias */
 function criarOuActualizarCliente(b) {
   const nome = String(b.nome || '').trim();
-  const whats = digitos(b.whatsapp);
+  const whats = normalizarWhats(b.whatsapp);
   let c = null;
-  if (whats) c = clientes.find(x => digitos(x.whatsapp) === whats);
+  if (whats) c = clientes.find(x => normalizarWhats(x.whatsapp) === whats);
   if (!c && nome) c = clientes.find(x => x.nome.toLowerCase() === nome.toLowerCase());
 
   if (!c) {
     c = {
       id: 'cli-' + crypto.randomBytes(4).toString('hex'),
       nome: nome,
-      whatsapp: String(b.whatsapp || '').trim(),
+      whatsapp: whats,
       fotosContratadas: '',
       precoExtra: '',
       criadoEm: new Date().toISOString()
@@ -779,7 +790,7 @@ function criarOuActualizarCliente(b) {
     clientes.push(c);
   }
   if (nome) c.nome = nome;
-  if (b.whatsapp !== undefined) c.whatsapp = String(b.whatsapp).trim();
+  if (b.whatsapp !== undefined) c.whatsapp = normalizarWhats(b.whatsapp);
   if (b.fotosContratadas !== undefined) c.fotosContratadas = String(b.fotosContratadas).trim();
   if (b.precoExtra !== undefined) c.precoExtra = String(b.precoExtra).trim();
   guardarClientes();
@@ -955,8 +966,8 @@ function acharGaleriaPublica(req) {
 function acessoValido(g, req) {
   if (!g.privada) return true;
   const c = clienteDe(g);
-  const whatsCadastrado = c ? digitos(c.whatsapp) : '';
-  const whatsInformado = digitos(req.headers['x-gal-acesso'] || req.headers['x-gal-whatsapp']);
+  const whatsCadastrado = c ? normalizarWhats(c.whatsapp) : '';
+  const whatsInformado = normalizarWhats(req.headers['x-gal-acesso'] || req.headers['x-gal-whatsapp']);
 
   if (whatsCadastrado) {
     if (!whatsInformado || whatsInformado !== whatsCadastrado) return false;

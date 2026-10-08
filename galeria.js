@@ -24,11 +24,10 @@
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
   }
+  /* só dígitos — a normalização (indicativo 244) é feita no backend,
+     para o login nunca divergir do que foi gravado */
   function digitos(v) {
-    var d = String(v || '').replace(/\D/g, '');
-    if (!d) return '';
-    if (d.length === 9) d = '244' + d;
-    return d;
+    return String(v || '').replace(/\D/g, '');
   }
   function fmt(n) { return (parseInt(n, 10) || 0).toLocaleString('pt-PT'); }
   function dataCurta(iso) {
@@ -418,6 +417,9 @@
 
   function posicionarCoracaoNoCantoDaFoto() {
     if (aberto < 0) return;
+    /* no mobile o coração fica escondido (só o botão inferior) — saltar as
+       leituras de layout deixa a navegação mais fluida */
+    try { if (window.innerWidth <= 760) return; } catch (e) {}
     var img = el('vImg');
     var coracao = el('vCoracaoMarcado');
     var cont = el('vImgContainer');
@@ -455,6 +457,7 @@
   function abrirVisor(i) {
     if (!G || !G.fotos || !G.fotos.length) return;
     aberto = i;
+    geracaoVisor++;
     el('visor').hidden = false;
     document.body.style.overflow = 'hidden';
     pintarVisor(0);
@@ -590,25 +593,72 @@
   if (el('vAntes')) el('vAntes').addEventListener('click', function () { passo(-1); });
   if (el('vDepois')) el('vDepois').addEventListener('click', function () { passo(1); });
 
-  // Suporte a gestos touch swipe para celulares e tablets (único listener com sensibilidade calibrada)
-  var touchInicioX = 0;
-  var touchInicioY = 0;
+  /* Gestos touch: horizontal acompanha o dedo (fluido, só transform, sem
+     leituras de layout no movimento); para baixo a partir de ~110px fecha o
+     visor. Só vale com 1 dedo e fora da animação de troca. */
+  var arrX0 = 0, arrY0 = 0, arrDX = 0, arrDY = 0, arrEixo = null, arrAtivo = false;
+  var geracaoVisor = 0;
   var centroEl = el('visorCentro');
   if (centroEl) {
     centroEl.addEventListener('touchstart', function (e) {
+      if (aberto < 0 || animandoVisor) { arrAtivo = false; return; }
       if (e.touches && e.touches.length === 1) {
-        touchInicioX = e.touches[0].clientX;
-        touchInicioY = e.touches[0].clientY;
+        arrX0 = e.touches[0].clientX;
+        arrY0 = e.touches[0].clientY;
+        arrDX = 0; arrDY = 0; arrEixo = null; arrAtivo = true;
+        var img0 = el('vImg');
+        if (img0) img0.style.transition = 'none';
+      } else { arrAtivo = false; }
+    }, { passive: true });
+    centroEl.addEventListener('touchmove', function (e) {
+      if (!arrAtivo || aberto < 0) return;
+      if (!e.touches || e.touches.length !== 1) { arrAtivo = false; return; }
+      arrDX = e.touches[0].clientX - arrX0;
+      arrDY = e.touches[0].clientY - arrY0;
+      if (!arrEixo && Math.abs(arrDX) + Math.abs(arrDY) > 14) {
+        arrEixo = Math.abs(arrDX) >= Math.abs(arrDY) ? 'x' : 'y';
+      }
+      if (!arrEixo) return;
+      var img = el('vImg');
+      if (!img) return;
+      if (arrEixo === 'x') {
+        img.style.transform = 'translate3d(' + Math.round(arrDX) + 'px, 0, 0)';
+        img.style.opacity = '1';
+      } else {
+        img.style.transform = 'translate3d(0, ' + Math.round(Math.max(arrDY, -60)) + 'px, 0)';
+        img.style.opacity = String(Math.max(0.3, 1 - Math.abs(arrDY) / 480));
       }
     }, { passive: true });
     centroEl.addEventListener('touchend', function (e) {
-      if (e.changedTouches && e.changedTouches.length === 1) {
-        var difX = e.changedTouches[0].clientX - touchInicioX;
-        var difY = e.changedTouches[0].clientY - touchInicioY;
-        if (Math.abs(difX) > 36 && Math.abs(difX) > Math.abs(difY) * 1.2) {
-          if (difX > 0) passo(-1); // Deslizou para a direita -> foto anterior
-          else passo(1);          // Deslizou para a esquerda -> foto seguinte
+      if (!arrAtivo) return;
+      arrAtivo = false;
+      var img = el('vImg');
+      if (arrEixo === 'y' && arrDY > 110) {
+        /* arrastar para baixo fecha */
+        var gFechar = geracaoVisor;
+        if (img) {
+          img.style.transition = 'transform .22s ease-out, opacity .22s ease-out';
+          img.style.transform = 'translate3d(0, 42vh, 0)';
+          img.style.opacity = '0';
         }
+        setTimeout(function () { if (gFechar === geracaoVisor) fecharVisor(); }, 200);
+      } else if (arrEixo === 'x' && Math.abs(arrDX) > 48) {
+        if (arrDX > 0) passo(-1); // Deslizou para a direita -> foto anterior
+        else passo(1);            // Deslizou para a esquerda -> foto seguinte
+      } else if (img) {
+        img.style.transition = 'transform .18s ease-out, opacity .18s ease-out';
+        img.style.transform = 'translate3d(0, 0, 0)';
+        img.style.opacity = '1';
+      }
+      arrEixo = null;
+    }, { passive: true });
+    centroEl.addEventListener('touchcancel', function () {
+      arrAtivo = false; arrEixo = null;
+      var img = el('vImg');
+      if (img && aberto >= 0) {
+        img.style.transition = 'transform .18s ease-out, opacity .18s ease-out';
+        img.style.transform = 'translate3d(0, 0, 0)';
+        img.style.opacity = '1';
       }
     }, { passive: true });
   }
