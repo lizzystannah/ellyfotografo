@@ -133,6 +133,11 @@ async function inicializarMySQL() {
     try {
       await dbPool.query(`ALTER TABLE galerias ADD COLUMN ordem_fotos VARCHAR(20) DEFAULT 'captura';`);
     } catch (eCol) {}
+    try {
+      /* carimbo de escrita da linha: avançado em TODA mutação; o refresh
+         compara-o para nunca aplicar estado mais velho por cima do novo */
+      await dbPool.query(`ALTER TABLE galerias ADD COLUMN atualizado_em VARCHAR(50);`);
+    } catch (eCol) {}
     await dbPool.query(`
       CREATE TABLE IF NOT EXISTS clientes (
         id VARCHAR(100) PRIMARY KEY,
@@ -163,6 +168,17 @@ async function inicializarMySQL() {
         estado JSON
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+    /* lápides de galerias apagadas: sem isto, o refresh merge-only de outra
+       instância ressuscitava galerias apagadas (e o re-sync re-INSERTava) */
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS galerias_apagadas (
+        id VARCHAR(100) PRIMARY KEY,
+        apagado_em VARCHAR(50)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    try {
+      await dbPool.query(`ALTER TABLE galerias_apagadas ADD COLUMN slug VARCHAR(100);`);
+    } catch (eCol) {}
     console.log('✓ Tabelas do MySQL inicializadas com sucesso.');
     await carregarDoMySQL();
   } catch (e) {
@@ -196,7 +212,8 @@ function linhaParaGaleria(r) {
     selecao,
     criadaEm: pick(r.criada_em, null),
     fotosMeta: fotosMeta && typeof fotosMeta === 'object' ? fotosMeta : {},
-    ordemFotos: pick(r.ordem_fotos, 'captura')
+    ordemFotos: pick(r.ordem_fotos, 'captura'),
+    atualizadoEm: pick(r.atualizado_em, null)
   };
 }
 
@@ -227,6 +244,20 @@ async function carregarDoMySQL() {
       await sincronizarGaleriasMySQL();
       console.log(`✓ Galerias migradas do JSON para o MySQL (${galerias.length}).`);
     }
+    /* lápides no arranque: um JSON antigo (volume anterior) não pode
+       ressuscitar galerias já apagadas */
+    try {
+      const [laps0] = await dbPool.query('SELECT id FROM galerias_apagadas');
+      if (Array.isArray(laps0) && laps0.length && galerias.length) {
+        const ids = new Set(laps0.map(r => r.id));
+        const antes = galerias.length;
+        galerias = galerias.filter(x => !ids.has(x.id));
+        if (galerias.length !== antes) {
+          try { gravarJson('galerias.json', galerias); } catch (e) {}
+          console.log(`✓ Lápides aplicadas no arranque (${antes - galerias.length} removida(s)).`);
+        }
+      }
+    } catch (e) {}
     if (Array.isArray(linhasC) && linhasC.length) {
       clientes = linhasC.map(linhaParaCliente);
       try { gravarJson('clientes.json', clientes); } catch (e) {}
@@ -275,29 +306,30 @@ async function carregarDoMySQL() {
 
 async function sincronizarGaleriasMySQL() {
   if (!dbPool) return;
-  const ids = galerias.map(g => g.id);
+  /* só upserts: o DELETE por NOT IN foi removido de propósito — com refresh
+     merge-only entre instâncias, ele apagava linhas criadas noutra instância
+     cujo sync ainda não tinha corrido. Apagamentos propagam por lápides
+     (tabela galerias_apagadas). */
   for (const g of galerias) {
     await dbPool.query(
-      `INSERT INTO galerias (id, slug, nome, dias, expira_em, capa, fotos, privada, senha, cliente_id, selecao, criada_em, fotos_meta, ordem_fotos)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO galerias (id, slug, nome, dias, expira_em, capa, fotos, privada, senha, cliente_id, selecao, criada_em, fotos_meta, ordem_fotos, atualizado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE slug=VALUES(slug), nome=VALUES(nome), dias=VALUES(dias), expira_em=VALUES(expira_em),
          capa=VALUES(capa), fotos=VALUES(fotos), privada=VALUES(privada), senha=VALUES(senha), cliente_id=VALUES(cliente_id),
-         selecao=VALUES(selecao), criada_em=VALUES(criada_em), fotos_meta=VALUES(fotos_meta), ordem_fotos=VALUES(ordem_fotos)`,
+         selecao=VALUES(selecao), criada_em=VALUES(criada_em), fotos_meta=VALUES(fotos_meta), ordem_fotos=VALUES(ordem_fotos),
+         atualizado_em=VALUES(atualizado_em)`,
       [g.id, g.slug, g.nome, g.dias || 30, g.expiraEm || null, g.capa || null,
        JSON.stringify(g.fotos || []), g.privada ? 1 : 0, g.senha || 'ellyfotografo',
        g.clienteId || null, g.selecao ? JSON.stringify(g.selecao) : null,
-       g.criadaEm || null, JSON.stringify(g.fotosMeta || {}), g.ordemFotos || 'captura']
+       g.criadaEm || null, JSON.stringify(g.fotosMeta || {}), g.ordemFotos || 'captura',
+       g.atualizadoEm || null]
     );
-  }
-  if (ids.length) {
-    const ph = ids.map(() => '?').join(',');
-    await dbPool.query(`DELETE FROM galerias WHERE id NOT IN (${ph})`, ids);
   }
 }
 
 async function sincronizarClientesMySQL() {
   if (!dbPool) return;
-  const ids = clientes.map(c => c.id);
+  /* só upserts (mesmo motivo das galerias: sem DELETE por NOT IN) */
   for (const c of clientes) {
     await dbPool.query(
       `INSERT INTO clientes (id, nome, whatsapp, fotos_contratadas, preco_extra, criado_em, senha)
@@ -308,10 +340,6 @@ async function sincronizarClientesMySQL() {
       [c.id, c.nome || '', c.whatsapp || '', c.fotosContratadas || '', c.precoExtra || '',
        c.criadoEm || null, c.senha || null]
     );
-  }
-  if (ids.length) {
-    const ph = ids.map(() => '?').join(',');
-    await dbPool.query(`DELETE FROM clientes WHERE id NOT IN (${ph})`, ids);
   }
 }
 
@@ -353,6 +381,104 @@ async function sincronizarTemplatesMySQL() {
   if (ids.length) {
     const ph = ids.map(() => '?').join(',');
     await dbPool.query(`DELETE FROM landing_templates WHERE id NOT IN (${ph})`, ids);
+  }
+}
+
+/* read-through: antes de decidir (expirada? fechada?) traz a versão mais
+   fresca da galeria a partir do MySQL para a memória. Merge-only (atualiza
+   ou adiciona, nunca remove) para não perder escritas ainda a caminho do
+   banco. Resolve divergência entre instâncias/redeploys: o reativar feito
+   numa instância passa a valer em todas. */
+/* fila única de escrita no MySQL: todas as sincronizações de galerias correm
+   por ordem de chamada. Sem isto, um sync antigo podia gravar por cima de
+   uma escrita mais recente (fotos perdidas, reativar desfeito). */
+let filaSyncGalerias = Promise.resolve();
+function naFilaSyncGalerias(fn) {
+  const t = filaSyncGalerias.then(fn);
+  filaSyncGalerias = t.catch(() => {});
+  return t;
+}
+function syncGaleriasNQ() {
+  return naFilaSyncGalerias(() => sincronizarGaleriasMySQL());
+}
+
+/* carimbo de frescura de uma galeria: o maior entre o carimbo da linha
+   (avançado em TODA mutação via tocarGaleria), o da seleção e a criação.
+   A comparação lexicográfica vale porque os carimbos são ISO-8601. */
+function carimboGaleria(g) {
+  if (!g) return '';
+  const cands = [g.atualizadoEm, g.selecao && g.selecao.atualizadoEm, g.criadaEm].filter(Boolean);
+  return cands.length ? cands.sort().pop() : '';
+}
+
+/* marca a galeria como "escrita agora". Chamar em TODA mutação antes de
+   persistir, para o refresh de qualquer instância convergir para ela. */
+function tocarGaleria(g) {
+  if (g) g.atualizadoEm = new Date().toISOString();
+}
+
+/* aplica uma linha do banco à memória com regra de carimbo: se a cópia em
+   memória é igual ou mais nova, mantém-se (a sua escrita ainda está na fila
+   ou já lá está). Sem isto, o refresh desfazia finalizações e uploads
+   pendentes. */
+function aplicarLinhaFresca(fresca) {
+  const mem = galerias.find(x => x.id === fresca.id);
+  if (!mem) {
+    galerias.push(fresca);
+    return fresca;
+  }
+  const cMem = carimboGaleria(mem);
+  const cDb = carimboGaleria(fresca);
+  if (cMem && cDb && cMem >= cDb) return mem;
+  const i = galerias.findIndex(x => x.id === fresca.id);
+  galerias[i] = fresca;
+  return fresca;
+}
+
+async function refrescarGaleriaDoMySQL(chave) {
+  if (!dbPool || !dbPronto || !chave) return null;
+  try {
+    /* LEFT JOIN com as lápides: uma linha ressuscitada no banco (ou com
+       id≠slug legado) nunca volta à memória */
+    const [linhas] = await dbPool.query(
+      `SELECT g.*, (t.id IS NOT NULL) AS apagada FROM galerias g
+       LEFT JOIN galerias_apagadas t ON t.id = g.id OR t.slug = g.slug
+       WHERE g.id = ? OR g.slug = ? LIMIT 1`, [chave, chave]
+    );
+    if (linhas && linhas[0]) {
+      if (linhas[0].apagada) {
+        galerias = galerias.filter(x => x.id !== linhas[0].id && x.slug !== chave);
+        return null;
+      }
+      return aplicarLinhaFresca(linhaParaGaleria(linhas[0]));
+    }
+    /* sem linha: ou nunca existiu, ou foi apagada — a lápide decide */
+    const [laps] = await dbPool.query(
+      'SELECT id FROM galerias_apagadas WHERE id = ? OR slug = ? LIMIT 1', [chave, chave]
+    );
+    if (laps && laps[0]) {
+      galerias = galerias.filter(x => x.id !== laps[0].id && x.slug !== chave);
+    }
+  } catch (e) {
+    console.error('ERRO refresh galeria MySQL (a servir memória, pode estar stale):', e.message);
+  }
+  return null;
+}
+
+async function refrescarGaleriasDoMySQL() {
+  if (!dbPool || !dbPronto) return;
+  try {
+    const [linhas] = await dbPool.query('SELECT * FROM galerias');
+    if (Array.isArray(linhas) && linhas.length) {
+      for (const r of linhas) aplicarLinhaFresca(linhaParaGaleria(r));
+    }
+    const [laps] = await dbPool.query('SELECT id FROM galerias_apagadas');
+    if (Array.isArray(laps) && laps.length) {
+      const ids = new Set(laps.map(r => r.id));
+      galerias = galerias.filter(x => !ids.has(x.id));
+    }
+  } catch (e) {
+    console.error('ERRO refresh galerias MySQL (a servir memória, pode estar stale):', e.message);
   }
 }
 
@@ -401,25 +527,34 @@ if (templatesLanding.length === 0 && estadoLanding && typeof estadoLanding === '
 const guardarGalerias = () => {
   gravarJson('galerias.json', galerias);
   if (dbPool && dbPronto) {
-    sincronizarGaleriasMySQL().catch(e => console.warn('Aviso sync galerias MySQL:', e.message));
+    syncGaleriasNQ().catch(e => console.error('ERRO sync galerias MySQL (memória e banco divergiram):', e.message));
   }
 };
+/* escrita durável: grava JSON e ESPERA o sync do MySQL pela fila, por ordem.
+   Usada nas operações que mudam finalizada/validade — o 200 devolvido
+   significa que o banco já tem o novo estado (reativar nunca se perde). */
+async function persistirGaleriasDuravel() {
+  gravarJson('galerias.json', galerias);
+  if (dbPool && dbPronto) {
+    await syncGaleriasNQ();
+  }
+}
 const guardarClientes = () => {
   gravarJson('clientes.json', clientes);
   if (dbPool && dbPronto) {
-    sincronizarClientesMySQL().catch(e => console.warn('Aviso sync clientes MySQL:', e.message));
+    sincronizarClientesMySQL().catch(e => console.error('ERRO sync clientes MySQL (memória e banco divergiram):', e.message));
   }
 };
 const guardarEstadoLanding = () => {
   gravarJson('landing.json', estadoLanding);
   if (dbPool && dbPronto) {
-    sincronizarLandingMySQL().catch(e => console.warn('Aviso sync landing MySQL:', e.message));
+    sincronizarLandingMySQL().catch(e => console.error('ERRO sync landing MySQL (memória e banco divergiram):', e.message));
   }
 };
 const guardarTemplatesLanding = () => {
   gravarJson('templates_landing.json', templatesLanding);
   if (dbPool && dbPronto) {
-    sincronizarTemplatesMySQL().catch(e => console.warn('Aviso sync templates MySQL:', e.message));
+    sincronizarTemplatesMySQL().catch(e => console.error('ERRO sync templates MySQL (memória e banco divergiram):', e.message));
   }
 };
 
@@ -760,7 +895,11 @@ const rotasGaleria = [
   '/elifotografo/galeria/:slug',
   '/eli-fotografo/galeria/:slug'
 ];
-app.get(rotasGaleria, (req, res) => {
+app.get(rotasGaleria, async (req, res) => {
+  /* sem isto o browser guarda o 410/HTML antigo e o link reativado parece morto */
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.set('Pragma', 'no-cache');
+  try { await refrescarGaleriaDoMySQL(req.params.slug); } catch (e) {}
   const g = galerias.find(x => x.slug === req.params.slug);
   if (!g) return res.status(404).send('Galeria não encontrada.');
   if (g.expiraEm && Date.parse(g.expiraEm) < Date.now()) {
@@ -833,7 +972,9 @@ function acessoValido(g, req) {
   return false;
 }
 
-pub.get('/galeria/:slug', (req, res) => {
+pub.get('/galeria/:slug', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { await refrescarGaleriaDoMySQL(req.params.slug); } catch (e) {}
   const r = acharGaleriaPublica(req);
   if (r.erro) {
     return res.status(r.erro).json({
@@ -877,7 +1018,8 @@ pub.get('/galeria/:slug', (req, res) => {
 
 /* leitura/gravação da seleção — o cliente pode voltar mais tarde */
 pub.use((req, res, next) => {
-  req.querGaleria = () => {
+  req.querGaleria = async () => {
+    try { await refrescarGaleriaDoMySQL(req.params.slug); } catch (e) {}
     const r = acharGaleriaPublica(req);
     if (r.erro) { res.status(r.erro).json({ erro: r.msg }); return null; }
     if (!acessoValido(r.g, req)) { res.status(403).json({ erro: 'Acesso negado.' }); return null; }
@@ -886,14 +1028,17 @@ pub.use((req, res, next) => {
   next();
 });
 
-pub.get('/galeria/:slug/selecao', (req, res) => {
-  const g = req.querGaleria();
+pub.get('/galeria/:slug/selecao', async (req, res) => {
+  /* antes do querGaleria: o 410/403 de dentro também não pode ser cacheado */
+  res.set('Cache-Control', 'no-store');
+  const g = await req.querGaleria();
   if (!g) return;
   res.json(g.selecao || { fotos: [], finalizada: false });
 });
 
-pub.post('/galeria/:slug/selecao', (req, res) => {
-  const g = req.querGaleria();
+pub.post('/galeria/:slug/selecao', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const g = await req.querGaleria();
   if (!g) return;
   const b = req.body || {};
   g.selecao = {
@@ -901,7 +1046,13 @@ pub.post('/galeria/:slug/selecao', (req, res) => {
     finalizada: !!b.finalizada,
     atualizadoEm: new Date().toISOString()
   };
-  guardarGalerias();
+  tocarGaleria(g);
+  try {
+    await persistirGaleriasDuravel();
+  } catch (e) {
+    console.error('ERRO ao persistir seleção do cliente:', e.message);
+    return res.status(500).json({ erro: 'Não consegui gravar a seleção. Tenta de novo.' });
+  }
   res.json(g.selecao);
 });
 
@@ -937,7 +1088,10 @@ api.get('/', (req, res) => res.json({ ok: true }));
 
 /* ---- galerias ---- */
 
-api.get('/galerias', (req, res) => res.json(galerias.map(publicaGaleria)));
+api.get('/galerias', async (req, res) => {
+  try { await refrescarGaleriasDoMySQL(); } catch (e) {}
+  res.json(galerias.map(publicaGaleria));
+});
 
 api.post('/galerias', async (req, res) => {
   const b = req.body || {};
@@ -957,7 +1111,8 @@ api.post('/galerias', async (req, res) => {
     senha: String(b.senha || 'ellyfotografo').trim(),
     clienteId: null,
     selecao: null,
-    criadaEm: new Date().toISOString()
+    criadaEm: new Date().toISOString(),
+    atualizadoEm: new Date().toISOString()
   };
 
   if (b.capa) {
@@ -967,19 +1122,35 @@ api.post('/galerias', async (req, res) => {
 
   galerias.unshift(galeria);
   guardarGalerias();
+  /* defesa: um id recém-criado nunca deve ter lápide (colisão teórica) */
+  if (dbPool && dbPronto) {
+    dbPool.query('DELETE FROM galerias_apagadas WHERE id = ?', [galeria.id]).catch(() => {});
+  }
   res.status(201).json(publicaGaleria(galeria));
 });
 
-api.get('/galerias/:id', (req, res) => {
+api.get('/galerias/:id', async (req, res) => {
+  try { await refrescarGaleriaDoMySQL(req.params.id); } catch (e) {}
   const g = galerias.find(x => x.id === req.params.id);
   if (!g) return res.status(404).json({ erro: 'Galeria inexistente.' });
   res.json(publicaGaleria(g));
 });
 
 api.put('/galerias/:id', async (req, res) => {
-  const g = galerias.find(x => x.id === req.params.id);
+  try { await refrescarGaleriaDoMySQL(req.params.id); } catch (e) {}
+  let g = galerias.find(x => x.id === req.params.id);
   if (!g) return res.status(404).json({ erro: 'Galeria inexistente.' });
   const b = req.body || {};
+  /* o upload da capa corre ANTES de voltar a referenciar a galeria: entre
+     awaits, um refresh concorrente pode trocar o objeto em memória — as
+     mutações abaixo têm de correr num trecho síncrono sobre a referência
+     fresca, senão editam um objeto destacado e perdem-se no sync */
+  let urlCapa = null;
+  if (b.capa) {
+    urlCapa = await processarEGuardarImagem(b.capa, 'capas', slugDe(g.nome) + '_' + Date.now().toString(36));
+  }
+  g = galerias.find(x => x.id === req.params.id);
+  if (!g) return res.status(404).json({ erro: 'Galeria inexistente.' });
   if (b.nome !== undefined) g.nome = String(b.nome).trim();
   /* estender o prazo ou reativar reabre o link: mantém as fotos já escolhidas
      mas permite ao cliente entrar de novo */
@@ -1006,20 +1177,39 @@ api.put('/galerias/:id', async (req, res) => {
   if (b.senha !== undefined) g.senha = String(b.senha || 'ellyfotografo').trim();
   if (b.privada !== undefined) g.privada = !!b.privada;
   if (b.ordemFotos !== undefined) ordenarFotos(g, b.ordemFotos);
-  if (b.capa) {
-    const urlCapa = await processarEGuardarImagem(b.capa, 'capas', slugDe(g.nome) + '_' + Date.now().toString(36));
-    if (urlCapa) g.capa = urlCapa;
+  if (urlCapa) g.capa = urlCapa;
+  tocarGaleria(g);
+  try {
+    await persistirGaleriasDuravel();
+  } catch (e) {
+    console.error('ERRO ao persistir galeria (reativar/edição pode não ter chegado ao banco):', e.message);
+    return res.status(500).json({ erro: 'Não consegui gravar no banco de dados. Tenta de novo.' });
   }
-  guardarGalerias();
   res.json(publicaGaleria(g));
 });
 
-api.delete('/galerias/:id', (req, res) => {
+api.delete('/galerias/:id', async (req, res) => {
   const i = galerias.findIndex(x => x.id === req.params.id);
   if (i < 0) return res.status(404).json({ erro: 'Galeria inexistente.' });
   const g = galerias[i];
   galerias.splice(i, 1);
-  guardarGalerias();
+  try {
+    gravarJson('galerias.json', galerias);
+    await naFilaSyncGalerias(async () => {
+      /* apaga a linha e grava a lápide na mesma unidade ordenada: nenhuma
+         instância volta a ressuscitar esta galeria */
+      if (dbPool && dbPronto) {
+        await dbPool.query('DELETE FROM galerias WHERE id = ?', [g.id]);
+        await dbPool.query(
+          'INSERT INTO galerias_apagadas (id, slug, apagado_em) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE slug=VALUES(slug), apagado_em=VALUES(apagado_em)',
+          [g.id, g.slug, new Date().toISOString()]
+        );
+      }
+    });
+  } catch (e) {
+    console.error('ERRO ao apagar galeria no banco:', e.message);
+    return res.status(500).json({ erro: 'Não consegui apagar no banco de dados. Tenta de novo.' });
+  }
   try { fs.rmSync(path.join(FOTOS, g.slug), { recursive: true, force: true }); } catch (e) {}
   try { if (g.capa && g.capa.startsWith('/capas/')) fs.rmSync(path.join(CAPAS, path.basename(g.capa)), { force: true }); } catch (e) {}
   res.json({ ok: true });
@@ -1082,6 +1272,7 @@ api.post('/galerias/:id/fotos', async (req, res) => {
   // Ordena conforme critério selecionado
   ordenarFotos(g, criterioOrdem);
 
+  tocarGaleria(g);
   guardarGalerias();
   res.json({ total: g.fotos.length, guardadas, galeria: publicaGaleria(g) });
 });
@@ -1117,6 +1308,7 @@ api.put('/galerias/:id/ordenar', async (req, res) => {
   }
 
   ordenarFotos(g, criterio);
+  tocarGaleria(g);
   guardarGalerias();
   res.json(publicaGaleria(g));
 });
@@ -1125,6 +1317,7 @@ api.delete('/galerias/:id/fotos', (req, res) => {
   const g = galerias.find(x => x.id === req.params.id);
   if (!g) return res.status(404).json({ erro: 'Galeria inexistente.' });
   g.fotos = [];
+  tocarGaleria(g);
   guardarGalerias();
   try { fs.rmSync(path.join(FOTOS, g.slug), { recursive: true, force: true }); } catch (e) {}
   res.json(publicaGaleria(g));
@@ -1142,6 +1335,7 @@ api.post('/galerias/:id/cliente', (req, res) => {
   g.privada = true;
   g.senha = String(b.senha || g.senha || 'ellyfotografo').trim();
   c.senha = g.senha;
+  tocarGaleria(g);
   guardarGalerias();
   guardarClientes();
   res.json(publicaGaleria(g));
@@ -1153,12 +1347,15 @@ api.delete('/galerias/:id/cliente', (req, res) => {
   if (!g) return res.status(404).json({ erro: 'Galeria inexistente.' });
   g.clienteId = null;
   g.privada = false;
+  tocarGaleria(g);
   guardarGalerias();
   res.json(publicaGaleria(g));
 });
 
 /* seleção do cliente (visão do backoffice) */
-api.get('/galerias/:id/selecao', (req, res) => {
+api.get('/galerias/:id/selecao', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { await refrescarGaleriaDoMySQL(req.params.id); } catch (e) {}
   const g = galerias.find(x => x.id === req.params.id);
   if (!g) return res.status(404).json({ erro: 'Galeria inexistente.' });
   const c = clienteDe(g);
