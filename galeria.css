@@ -225,17 +225,26 @@ button { font: inherit; }
   transition: max-width .25s ease;
 }
 
-/* Grade: 3 ou 4 fotografias por linha, exato em qualquer ecrã */
-.grelha.grelha-cols-3 {
-  column-count: 3;
-  column-gap: 12px;
+/* Grade: 2 ou 3 fotografias por linha, exato em qualquer ecrã.
+   display:grid (por linhas) em vez de columns (por colunas): a ordem visual
+   passa a ser igual à ordem do clique — clicar abre exatamente a foto. */
+.grelha.grelha-cols-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  align-items: start;
 }
-.grelha.grelha-cols-4 {
-  column-count: 4;
-  column-gap: 12px;
+.grelha.grelha-cols-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  align-items: start;
 }
 @media (max-width: 680px) {
-  .grelha.grelha-cols-3, .grelha.grelha-cols-4 { column-gap: 8px; padding: 12px 8px; }
+  .grelha.grelha-cols-2, .grelha.grelha-cols-3 { gap: 8px; padding: 12px 8px; }
+}
+.grelha.grelha-cols-2 .foto, .grelha.grelha-cols-3 .foto {
+  margin-bottom: 0;
 }
 
 .foto {

@@ -80,17 +80,17 @@
       <p class="aviso" id="avisoExtras" hidden></p>
     </div>
     <div class="barra-ferramentas">
-      <div class="seletor-ordem-cliente" id="seletorOrdemCliente" title="Critério de ordenação das fotografias">
-        <button type="button" class="btn-ordem-cli on" id="btnCliOrdemCaptura" title="Organizar por horário de captura cronológico">
-          ⏱️ Horário
-        </button>
-        <button type="button" class="btn-ordem-cli" id="btnCliOrdemNome" title="Organizar por nome do ficheiro (A-Z)">
-          🔤 Nome
-        </button>
-      </div>
-
       <div class="seletor-grade" id="seletorGrade" title="Fotografias por linha">
-        <button type="button" class="btn-grade on" id="btnGrade3" data-modo="3" title="3 fotografias por linha">
+        <button type="button" class="btn-grade on" id="btnGrade2" data-modo="2" title="2 fotografias por linha">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <rect x="3" y="3" width="8" height="8" rx="1.5"></rect>
+            <rect x="13" y="3" width="8" height="8" rx="1.5"></rect>
+            <rect x="3" y="13" width="8" height="8" rx="1.5"></rect>
+            <rect x="13" y="13" width="8" height="8" rx="1.5"></rect>
+          </svg>
+          <span class="txt-grade">2</span>
+        </button>
+        <button type="button" class="btn-grade" id="btnGrade3" data-modo="3" title="3 fotografias por linha">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
             <rect x="2" y="2" width="6" height="6" rx="1"></rect>
             <rect x="9" y="2" width="6" height="6" rx="1"></rect>
@@ -104,27 +104,6 @@
           </svg>
           <span class="txt-grade">3</span>
         </button>
-        <button type="button" class="btn-grade" id="btnGrade4" data-modo="4" title="4 fotografias por linha">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-            <rect x="2" y="2" width="4.5" height="4.5" rx="1"></rect>
-            <rect x="7.8" y="2" width="4.5" height="4.5" rx="1"></rect>
-            <rect x="13.5" y="2" width="4.5" height="4.5" rx="1"></rect>
-            <rect x="19.2" y="2" width="2.8" height="4.5" rx="1"></rect>
-            <rect x="2" y="7.8" width="4.5" height="4.5" rx="1"></rect>
-            <rect x="7.8" y="7.8" width="4.5" height="4.5" rx="1"></rect>
-            <rect x="13.5" y="7.8" width="4.5" height="4.5" rx="1"></rect>
-            <rect x="19.2" y="7.8" width="2.8" height="4.5" rx="1"></rect>
-            <rect x="2" y="13.5" width="4.5" height="4.5" rx="1"></rect>
-            <rect x="7.8" y="13.5" width="4.5" height="4.5" rx="1"></rect>
-            <rect x="13.5" y="13.5" width="4.5" height="4.5" rx="1"></rect>
-            <rect x="19.2" y="13.5" width="2.8" height="4.5" rx="1"></rect>
-            <rect x="2" y="19.2" width="4.5" height="2.8" rx="1"></rect>
-            <rect x="7.8" y="19.2" width="4.5" height="2.8" rx="1"></rect>
-            <rect x="13.5" y="19.2" width="4.5" height="2.8" rx="1"></rect>
-            <rect x="19.2" y="19.2" width="2.8" height="2.8" rx="1"></rect>
-          </svg>
-          <span class="txt-grade">4</span>
-        </button>
       </div>
     </div>
   </div>
@@ -133,7 +112,7 @@
     Seleção concluída. Se quiseres mudar alguma coisa, fala com a fotógrafa.
   </p>
 
-  <main class="grelha grelha-cols-3" id="grelha"></main>
+  <main class="grelha grelha-cols-2" id="grelha"></main>
   <p class="sem-fotos" id="semFotos" hidden>Esta galeria ainda não tem fotografias.</p>
 
   <footer class="rodape">

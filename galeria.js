@@ -206,8 +206,10 @@
     actualizarContador();
     aplicarEstadoFinal();
     iniciarControlesGrade();
-    iniciarControlesOrdemCliente();
   }
+
+  /* a ordem das fotos é definida no painel, no ato da criação — o cliente
+     vê a ordem dada, sem controlos de ordenação */
 
   /* a capa usa a proporção da própria fotografia (sem a cortar em vertical) */
   function proporcaoCapa(url) {
@@ -223,71 +225,32 @@
     im.src = url;
   }
 
-  var modoGrade = '3';
+  var modoGrade = '2';
   function definirModoGrade(modo) {
     /* migração dos modos antigos */
-    if (modo === 'compacta') modo = '4';
-    else if (modo !== '4') modo = '3';
+    if (modo === '3') modo = '3';
+    else modo = '2';
     modoGrade = modo;
     var gEl = el('grelha');
     if (gEl) {
+      gEl.classList.toggle('grelha-cols-2', modo === '2');
       gEl.classList.toggle('grelha-cols-3', modo === '3');
-      gEl.classList.toggle('grelha-cols-4', modo === '4');
-      gEl.classList.remove('grelha-compacta', 'grelha-confortavel');
+      gEl.classList.remove('grelha-compacta', 'grelha-confortavel', 'grelha-cols-4');
     }
+    if (el('btnGrade2')) el('btnGrade2').classList.toggle('on', modo === '2');
     if (el('btnGrade3')) el('btnGrade3').classList.toggle('on', modo === '3');
-    if (el('btnGrade4')) el('btnGrade4').classList.toggle('on', modo === '4');
     try { localStorage.setItem('gal_grade_modo', modo); } catch (e) {}
   }
 
   function iniciarControlesGrade() {
-    var salvo = '3';
-    try { salvo = localStorage.getItem('gal_grade_modo') || '3'; } catch (e) {}
+    var salvo = '2';
+    try { salvo = localStorage.getItem('gal_grade_modo') || '2'; } catch (e) {}
     definirModoGrade(salvo);
+    if (el('btnGrade2')) {
+      el('btnGrade2').onclick = function () { definirModoGrade('2'); };
+    }
     if (el('btnGrade3')) {
       el('btnGrade3').onclick = function () { definirModoGrade('3'); };
-    }
-    if (el('btnGrade4')) {
-      el('btnGrade4').onclick = function () { definirModoGrade('4'); };
-    }
-  }
-
-  function ordenarFotosCliente(criterio) {
-    if (!G || !Array.isArray(G.fotos) || !G.fotos.length) return;
-    if (criterio === 'captura') {
-      G.fotos.sort(function (a, b) {
-        var ma = (G.fotosMeta && G.fotosMeta[a]) || {};
-        var mb = (G.fotosMeta && G.fotosMeta[b]) || {};
-        var ta = Number(ma.timestamp) || 0;
-        var tb = Number(mb.timestamp) || 0;
-        if (ta !== tb) return ta - tb;
-        var na = ma.nomeOriginal || a;
-        var nb = mb.nomeOriginal || b;
-        return na.localeCompare(nb, undefined, { numeric: true });
-      });
-    } else if (criterio === 'nome') {
-      G.fotos.sort(function (a, b) {
-        var ma = (G.fotosMeta && G.fotosMeta[a]) || {};
-        var mb = (G.fotosMeta && G.fotosMeta[b]) || {};
-        var na = ma.nomeOriginal || a;
-        var nb = mb.nomeOriginal || b;
-        return na.localeCompare(nb, undefined, { numeric: true });
-      });
-    }
-    if (el('btnCliOrdemCaptura')) el('btnCliOrdemCaptura').classList.toggle('on', criterio === 'captura');
-    if (el('btnCliOrdemNome')) el('btnCliOrdemNome').classList.toggle('on', criterio === 'nome');
-    desenharGrelha();
-  }
-
-  function iniciarControlesOrdemCliente() {
-    var ordemInicial = (G && G.ordemFotos) || 'captura';
-    if (el('btnCliOrdemCaptura')) {
-      el('btnCliOrdemCaptura').classList.toggle('on', ordemInicial !== 'nome');
-      el('btnCliOrdemCaptura').onclick = function () { ordenarFotosCliente('captura'); };
-    }
-    if (el('btnCliOrdemNome')) {
-      el('btnCliOrdemNome').classList.toggle('on', ordemInicial === 'nome');
-      el('btnCliOrdemNome').onclick = function () { ordenarFotosCliente('nome'); };
     }
   }
 

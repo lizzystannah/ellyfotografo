@@ -549,6 +549,8 @@ body.painel-completo #btnPainelCompleto {
 .passos { display: flex; gap: 8px; list-style: none; font-size: 13px; color: var(--suave); }
 .passos li { padding: 5px 13px; border-radius: 20px; background: #f4f3ef; }
 .passos li.on { background: var(--gold); color: #111; font-weight: 600; }
+.assistente.editando .passos li { cursor: pointer; }
+.assistente.editando .passos li:hover { background: #ece7db; }
 .fechar {
   border: 0; background: none; font-size: 18px; color: var(--suave);
   cursor: pointer; line-height: 1;
@@ -1087,6 +1089,22 @@ label {
   pointer-events: none;
   z-index: 2;
 }
+.u-remover {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(14, 14, 18, 0.85);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 3;
+}
+.u-remover:hover { background: #b23b3b; }
 
 /* Modal de detalhe: cabeçalho e botões de ordenação */
 .det-cabecalho-fotos {

@@ -422,6 +422,7 @@
 
   function mostrarPasso(n) {
     actual.passo = n;
+    ast.classList.toggle('editando', !!actual.editando);
     ast.querySelectorAll('.ast-corpo').forEach(function (s) {
       s.hidden = Number(s.dataset.passo) !== n;
     });
@@ -433,6 +434,28 @@
     el('astTitulo').textContent = actual.editando
       ? 'Editar galeria' : 'Nova galeria';
   }
+
+  /* a editar, os passos são clicáveis: salta direto ao campo, gravando o
+     passo atual antes de mudar (na criação segue-se a sequência normal) */
+  ast.querySelectorAll('.passos li').forEach(function (li) {
+    li.addEventListener('click', function () {
+      var n = Number(li.dataset.p);
+      if (!n || n === actual.passo || !actual.editando) return;
+      if (!validarPasso()) return;
+      el('astSeguinte').disabled = true;
+      Promise.resolve()
+        .then(function () { return trabalharPasso(); })
+        .then(function () {
+          el('astSeguinte').disabled = false;
+          mostrarPasso(n);
+          if (n === 4) preencherResumo();
+        })
+        .catch(function (e) {
+          el('astSeguinte').disabled = false;
+          toast(e && e.message ? e.message : 'Não consegui gravar.', 'erro');
+        });
+    });
+  });
 
   function abrirAssistente(g) {
     actual = novoActual();
@@ -823,13 +846,27 @@
       actual.existentes.map(function (f) {
         return '<div class="u-item-upload u-concluido"><img src="' + esc(f) + '" alt="Fotografia da galeria"></div>';
       }).join('') +
-      actual.fotos.map(function (f) {
+      actual.fotos.map(function (f, i) {
         var metaTag = f.horaFormatada
           ? '<span class="u-foto-meta-tag">⏱️ ' + esc(f.horaFormatada) + (f.camera ? ' · ' + esc(f.camera.split(' ')[0]) : '') + '</span>'
           : '';
-        return '<div class="u-item-upload u-concluido"><img src="' + f.dados + '" alt="' + esc(f.nome) + '">' + metaTag + '</div>';
+        return '<div class="u-item-upload u-concluido"><img src="' + f.dados + '" alt="' + esc(f.nome) + '">' + metaTag +
+          '<button type="button" class="u-remover" data-rmpend="' + i + '" title="Não carregar esta fotografia" aria-label="Não carregar ' + esc(f.nome) + '">✕</button></div>';
       }).join('');
   }
+
+  /* tirar uma fotografia pendente antes de carregar para a galeria */
+  el('miniaturas').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-rmpend]');
+    if (!b) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    var i = parseInt(b.dataset.rmpend, 10);
+    if (!(i >= 0) || i >= actual.fotos.length) return;
+    actual.fotos.splice(i, 1);
+    desenharMiniaturas();
+    toast('Fotografia retirada da lista de carregamento.', 'info');
+  });
 
   /* passo 3 → público/privado */
   ast.querySelectorAll('input[name="acesso"]').forEach(function (r) {
