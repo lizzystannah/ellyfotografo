@@ -313,7 +313,7 @@
             '</div>' +
             '<div class="fila acoes-icones">' +
               '<button type="button" class="btn-icone btn-copiar-dados" data-copiar="' + esc(g.id) + '" title="Copiar link e dados de acesso" aria-label="Copiar link e dados de acesso">' + iconeCopiar + '</button>' +
-              '<a class="btn-icone btn-ver" href="/g/' + g.slug + '" target="_blank" rel="noopener" title="Ver galeria como cliente" aria-label="Ver galeria como cliente">' + iconeOlho + '</a>' +
+              '<a class="btn-icone btn-ver" href="/g/' + g.slug + '?equipa=1" target="_blank" rel="noopener" title="Ver galeria como cliente" aria-label="Ver galeria como cliente">' + iconeOlho + '</a>' +
               '<button type="button" class="btn-icone btn-editar" data-editar="' + esc(g.id) + '" title="Editar galeria" aria-label="Editar galeria">' + iconeLapis + '</button>' +
               (podeEnviar
                 ? '<a class="btn-icone btn-whats" target="_blank" rel="noopener" href="' + esc(linkWa(g.cliente.whatsapp, msg)) + '" title="Enviar dados no WhatsApp" aria-label="Enviar dados no WhatsApp">' + iconeWhats + '</a>'
@@ -1010,7 +1010,7 @@
     }
 
     var link = location.origin + '/g/' + g.slug;
-    el('dAbrir').href = link;
+    el('dAbrir').href = link + '?equipa=1';
     var wa = el('dWhats');
     if (g.cliente && g.cliente.whatsapp) {
       wa.hidden = false;

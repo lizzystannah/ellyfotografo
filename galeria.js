@@ -38,13 +38,12 @@
   function preco() { return parseInt(G.precoExtra, 10) || 0; }
   function extras() { return limite() ? Math.max(0, escolhidas.length - limite()) : 0; }
 
-  /* "Ver o site" é só para o fotógrafo: este navegador tem sessão do painel?
-     O cliente nem vê o link — fica só na galeria. */
+  /* "Ver o site" é só para o fotógrafo: só aparece quando a galeria é aberta
+     pelo painel ("Ver como cliente", que põe ?equipa=1 no link). O cliente,
+     que abre o link puro, nunca vê o botão. */
   try {
-    var sessaoStaff = localStorage.getItem('elly_sessao');
-    var eStaff = false;
-    try { eStaff = !!(sessaoStaff && JSON.parse(sessaoStaff).token); } catch (e2) {}
-    if (!eStaff) {
+    var paramsEquipa = new URLSearchParams(window.location.search);
+    if (paramsEquipa.get('equipa') !== '1') {
       var linksSite = document.querySelectorAll('a.voltar[href="/"]');
       for (var li = 0; li < linksSite.length; li++) linksSite[li].hidden = true;
     }
@@ -73,7 +72,10 @@
 
   function carregar() {
     if (!slug) { mostrarErro('Link inválido.'); return Promise.resolve('erro'); }
-    return fetch('/api/pub/galeria/' + encodeURIComponent(slug), { headers: cabecalho(), cache: 'no-store' })
+    /* ID único por acesso (_=...): mesmo que a galeria seja a mesma, cada URL
+       é diferente e nenhuma cache (navegador, proxy, CDN) consegue bater */
+    var acessoId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    return fetch('/api/pub/galeria/' + encodeURIComponent(slug) + '?_=' + acessoId, { headers: cabecalho(), cache: 'no-store' })
       .then(function (r) { return r.json().catch(function () { return { erro: 'Resposta inválida.' }; }); })
       .then(function (d) {
         if (d.expirada) { mostrarExpirada(d); return 'expirada'; }
@@ -395,7 +397,7 @@
     if (!G) return Promise.resolve();
     clearTimeout(gravarT);
     var fazer = function () {
-      return fetch('/api/pub/galeria/' + encodeURIComponent(slug) + '/selecao', {
+      return fetch('/api/pub/galeria/' + encodeURIComponent(slug) + '/selecao?_=' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), {
         cache: 'no-store',
         method: 'POST',
         headers: (function () {
