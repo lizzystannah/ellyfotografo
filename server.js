@@ -146,6 +146,23 @@ async function inicializarMySQL() {
     try {
       await dbPool.query(`ALTER TABLE clientes ADD COLUMN senha VARCHAR(100);`);
     } catch (eCol) {}
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS landing_estado (
+        id TINYINT PRIMARY KEY DEFAULT 1,
+        estado JSON,
+        atualizado_em VARCHAR(50)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS landing_templates (
+        id VARCHAR(100) PRIMARY KEY,
+        nome VARCHAR(255) NOT NULL,
+        criado_em VARCHAR(50),
+        atualizado_em VARCHAR(50),
+        ativo TINYINT(1) DEFAULT 0,
+        estado JSON
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
     console.log('✓ Tabelas do MySQL inicializadas com sucesso.');
     await carregarDoMySQL();
   } catch (e) {
@@ -217,6 +234,38 @@ async function carregarDoMySQL() {
     } else if (Array.isArray(linhasC) && clientes.length) {
       await sincronizarClientesMySQL();
     }
+    /* landing publicada + templates (aba Landing Page do painel) */
+    try {
+      const [linhasE] = await dbPool.query('SELECT * FROM landing_estado WHERE id = 1 LIMIT 1');
+      const rowE = Array.isArray(linhasE) && linhasE[0];
+      let estadoDb = null;
+      if (rowE && rowE.estado) {
+        try { estadoDb = typeof rowE.estado === 'string' ? JSON.parse(rowE.estado) : rowE.estado; } catch (e) { estadoDb = null; }
+      }
+      if (estadoDb && temConteudoUtil(estadoDb)) {
+        estadoLanding = estadoDb;
+        try { gravarJson('landing.json', estadoLanding); } catch (e) {}
+        console.log('✓ Landing publicada carregada do MySQL.');
+      } else if (temConteudoUtil(estadoLanding)) {
+        await sincronizarLandingMySQL();
+        console.log('✓ Landing publicada migrada do JSON para o MySQL.');
+      }
+    } catch (e) {
+      console.warn('Aviso ao carregar landing do MySQL:', e.message);
+    }
+    try {
+      const [linhasT] = await dbPool.query('SELECT * FROM landing_templates');
+      if (Array.isArray(linhasT) && linhasT.length) {
+        templatesLanding = linhasT.map(linhaParaTemplate);
+        try { gravarJson('templates_landing.json', templatesLanding); } catch (e) {}
+        console.log(`✓ Templates da landing carregados do MySQL (${templatesLanding.length}).`);
+      } else if (templatesLanding.length) {
+        await sincronizarTemplatesMySQL();
+        console.log(`✓ Templates da landing migrados do JSON para o MySQL (${templatesLanding.length}).`);
+      }
+    } catch (e) {
+      console.warn('Aviso ao carregar templates do MySQL:', e.message);
+    }
     dbPronto = true;
   } catch (e) {
     console.warn('Aviso ao carregar do MySQL (segue com JSON local):', e.message);
@@ -263,6 +312,47 @@ async function sincronizarClientesMySQL() {
   if (ids.length) {
     const ph = ids.map(() => '?').join(',');
     await dbPool.query(`DELETE FROM clientes WHERE id NOT IN (${ph})`, ids);
+  }
+}
+
+function linhaParaTemplate(r) {
+  let estado = {};
+  try { estado = typeof r.estado === 'string' ? JSON.parse(r.estado) : (r.estado || {}); } catch (e) { estado = {}; }
+  return {
+    id: r.id,
+    nome: r.nome || '',
+    criadoEm: r.criado_em || null,
+    atualizadoEm: r.atualizado_em || null,
+    ativo: !!r.ativo,
+    estado
+  };
+}
+
+async function sincronizarLandingMySQL() {
+  if (!dbPool) return;
+  await dbPool.query(
+    `INSERT INTO landing_estado (id, estado, atualizado_em) VALUES (1, ?, ?)
+     ON DUPLICATE KEY UPDATE estado=VALUES(estado), atualizado_em=VALUES(atualizado_em)`,
+    [estadoLanding ? JSON.stringify(estadoLanding) : null, new Date().toISOString()]
+  );
+}
+
+async function sincronizarTemplatesMySQL() {
+  if (!dbPool) return;
+  const ids = templatesLanding.map(t => t.id);
+  for (const t of templatesLanding) {
+    await dbPool.query(
+      `INSERT INTO landing_templates (id, nome, criado_em, atualizado_em, ativo, estado)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE nome=VALUES(nome), criado_em=VALUES(criado_em),
+         atualizado_em=VALUES(atualizado_em), ativo=VALUES(ativo), estado=VALUES(estado)`,
+      [t.id, t.nome || '', t.criadoEm || null, t.atualizadoEm || null, t.ativo ? 1 : 0,
+       t.estado ? JSON.stringify(t.estado) : null]
+    );
+  }
+  if (ids.length) {
+    const ph = ids.map(() => '?').join(',');
+    await dbPool.query(`DELETE FROM landing_templates WHERE id NOT IN (${ph})`, ids);
   }
 }
 
@@ -320,7 +410,18 @@ const guardarClientes = () => {
     sincronizarClientesMySQL().catch(e => console.warn('Aviso sync clientes MySQL:', e.message));
   }
 };
-const guardarTemplatesLanding = () => gravarJson('templates_landing.json', templatesLanding);
+const guardarEstadoLanding = () => {
+  gravarJson('landing.json', estadoLanding);
+  if (dbPool && dbPronto) {
+    sincronizarLandingMySQL().catch(e => console.warn('Aviso sync landing MySQL:', e.message));
+  }
+};
+const guardarTemplatesLanding = () => {
+  gravarJson('templates_landing.json', templatesLanding);
+  if (dbPool && dbPronto) {
+    sincronizarTemplatesMySQL().catch(e => console.warn('Aviso sync templates MySQL:', e.message));
+  }
+};
 
 /* ---------------- sessões (persistidas em dados/sessoes.json) ---------------- */
 
@@ -594,7 +695,8 @@ app.get(['/health', '/api/health'], (req, res) => {
     timestamp: new Date().toISOString(),
     r2Ativo: !!(r2Client && r2Bucket),
     mysqlAtivo: !!dbPool,
-    totalGalerias: galerias.length
+    totalGalerias: galerias.length,
+    totalTemplates: templatesLanding.length
   });
 });
 
@@ -616,7 +718,6 @@ app.get(rotasLanding, (req, res) => {
 
   // Se solicitado um template específico via query string (?templateId=...)
   if (req.query && req.query.templateId) {
-    templatesLanding = lerJson('templates_landing.json', []);
     const tpl = templatesLanding.find(x => x.id === req.query.templateId);
     if (tpl && tpl.estado) {
       estadoAtual = tpl.estado;
@@ -624,7 +725,7 @@ app.get(rotasLanding, (req, res) => {
   }
 
   if (!estadoAtual) {
-    estadoAtual = estadoLanding || lerJson('landing.json', null);
+    estadoAtual = estadoLanding;
   }
 
   if (estadoAtual && typeof estadoAtual === 'object' && Object.keys(estadoAtual).length > 0) {
@@ -1116,7 +1217,7 @@ function processarGuardarLanding(req, res) {
   let valor = b.estado;
 
   // Proteção contra sobrescrita acidental por estado vazio
-  const estadoAtual = estadoLanding || lerJson('landing.json', null);
+  const estadoAtual = estadoLanding;
   if (!temConteudoUtil(valor) && !b.forcarReset) {
     if (temConteudoUtil(estadoAtual)) {
       console.warn('Tentativa de sobrescrever landing com estado vazio bloqueada. Preservando estado atual.');
@@ -1137,13 +1238,13 @@ function processarGuardarLanding(req, res) {
   }
 
   estadoLanding = valor;
-  gravarJson('landing.json', valor);
+  guardarEstadoLanding();
   res.json({ ok: true, atualizadoEm: new Date().toISOString() });
 }
 
 api.get('/landing', (req, res) => {
   res.set('Cache-Control', 'no-cache');
-  const atual = lerJson('landing.json', null) || estadoLanding;
+  const atual = estadoLanding;
   res.json({ estado: atual });
 });
 api.post('/landing', processarGuardarLanding);
@@ -1151,7 +1252,7 @@ api.post('/landing', processarGuardarLanding);
 // Endpoints adicionais para o editor garantir gravação em qualquer contexto
 app.get('/api/pub/landing', (req, res) => {
   res.set('Cache-Control', 'no-cache');
-  const atual = lerJson('landing.json', null) || estadoLanding;
+  const atual = estadoLanding;
   res.json({ estado: atual });
 });
 app.post('/api/landing-salvar', processarGuardarLanding);
@@ -1161,7 +1262,6 @@ app.post('/api/pub/landing', processarGuardarLanding);
 const MAX_TEMPLATES = 4;
 
 function listarTemplates(req, res) {
-  templatesLanding = lerJson('templates_landing.json', []);
   res.set('Cache-Control', 'no-cache');
   res.json({
     templates: templatesLanding,
@@ -1171,11 +1271,10 @@ function listarTemplates(req, res) {
 }
 
 function criarTemplate(req, res) {
-  templatesLanding = lerJson('templates_landing.json', []);
   const b = req.body || {};
   const nome = String(b.nome || '').trim() || ('Template ' + (templatesLanding.length + 1));
-  
-  const estadoAtualServidor = lerJson('landing.json', null) || estadoLanding;
+
+  const estadoAtualServidor = estadoLanding;
   const estado = temConteudoUtil(b.estado)
     ? b.estado
     : (temConteudoUtil(estadoAtualServidor) ? estadoAtualServidor : (b.estado || {}));
@@ -1224,9 +1323,9 @@ function criarTemplate(req, res) {
   }
 
   if (targetTpl.ativo && temConteudoUtil(targetTpl.estado)) {
-    salvarBackupHistorico('template_ativado_' + nome, estadoLanding || lerJson('landing.json', null));
+    salvarBackupHistorico('template_ativado_' + nome, estadoLanding);
     estadoLanding = targetTpl.estado;
-    gravarJson('landing.json', estadoLanding);
+    guardarEstadoLanding();
   }
 
   guardarTemplatesLanding();
@@ -1234,17 +1333,16 @@ function criarTemplate(req, res) {
 }
 
 function aplicarTemplate(req, res) {
-  templatesLanding = lerJson('templates_landing.json', []);
   const id = req.params.id;
   const t = templatesLanding.find(x => x.id === id);
   if (!t) return res.status(404).json({ erro: 'Template não encontrado.' });
 
   // Backup antes de substituir
-  salvarBackupHistorico('antes_aplicar_' + (t.nome || id), estadoLanding || lerJson('landing.json', null));
+  salvarBackupHistorico('antes_aplicar_' + (t.nome || id), estadoLanding);
 
   // Define como estado ativo da landing page
   estadoLanding = JSON.parse(JSON.stringify(t.estado));
-  gravarJson('landing.json', estadoLanding);
+  guardarEstadoLanding();
 
   // Marca este template como ativo e os outros como não ativos
   templatesLanding.forEach(item => {
@@ -1256,7 +1354,6 @@ function aplicarTemplate(req, res) {
 }
 
 function atualizarTemplate(req, res) {
-  templatesLanding = lerJson('templates_landing.json', []);
   const id = req.params.id;
   const t = templatesLanding.find(x => x.id === id);
   if (!t) return res.status(404).json({ erro: 'Template não encontrado.' });
@@ -1267,14 +1364,14 @@ function atualizarTemplate(req, res) {
     t.estado = JSON.parse(JSON.stringify(b.estado));
     t.atualizadoEm = new Date().toISOString();
   } else if (b.sobrescreverComAtual) {
-    t.estado = JSON.parse(JSON.stringify(estadoLanding || lerJson('landing.json', {})));
+    t.estado = JSON.parse(JSON.stringify(estadoLanding || {}));
     t.atualizadoEm = new Date().toISOString();
   }
 
   // Se o template for o ativo no site, reflete as alterações na landing page pública
   if (t.ativo && temConteudoUtil(t.estado)) {
     estadoLanding = t.estado;
-    gravarJson('landing.json', estadoLanding);
+    guardarEstadoLanding();
   }
 
   salvarBackupHistorico('atualizar_template_' + (t.nome || id), t.estado);
