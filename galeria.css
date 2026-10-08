@@ -97,7 +97,7 @@ button { font: inherit; }
   background: linear-gradient(to bottom, rgba(10,10,12,.38) 0%, rgba(10,10,12,.2) 40%, rgba(10,10,12,.88) 100%);
 }
 .capa-txt {
-  position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+  position: absolute; left: 0; right: 0; top: 44%; transform: translateY(-50%);
   text-align: center; color: #fff; padding: 0 20px;
 }
 .capa-txt h1 {
@@ -105,7 +105,28 @@ button { font: inherit; }
   font-size: clamp(26px, 5vw, 46px); line-height: 1.15; margin-top: 8px;
   text-shadow: 0 4px 26px rgba(0,0,0,.5);
 }
-.capa-sub { margin-top: 10px; font-size: 14.5px; color: rgba(255,255,255,.85); }
+.capa-base {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  text-align: center; color: #fff;
+  padding: 0 20px 66px;
+}
+.capa-base .eyebrow { margin-bottom: 6px; }
+.capa-cliente {
+  font-family: "Playfair Display", serif; font-weight: 600;
+  font-size: clamp(19px, 3.4vw, 27px); line-height: 1.2;
+  text-shadow: 0 3px 18px rgba(0,0,0,.55);
+}
+.capa-sub { margin-top: 8px; font-size: 14.5px; color: rgba(255,255,255,.85); }
+
+/* ecrãs curtos (ex.: 360x640): compacta a capa para o título não tocar na base */
+@media (max-height: 700px) {
+  .capa-txt { top: 36%; }
+  .capa-txt h1 { font-size: clamp(20px, 5vw, 28px); margin-top: 4px; }
+  .capa-base { padding-bottom: 54px; }
+  .capa-base .eyebrow { font-size: 10px; margin-bottom: 4px; }
+  .capa-cliente { font-size: 17px; }
+  .capa-sub { font-size: 12.5px; margin-top: 5px; }
+}
 .rolar {
   position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
   width: 42px; height: 42px; display: grid; place-items: center;

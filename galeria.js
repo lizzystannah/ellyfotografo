@@ -182,11 +182,13 @@
     document.title = G.nome + ' · Elly Fotógrafo';
     el('titulo').textContent = G.nome;
 
-    var partes = [];
-    if (G.cliente) partes.push(G.cliente);
-    partes.push(G.total + (G.total === 1 ? ' fotografia' : ' fotografias'));
-    if (G.expiraEm) partes.push('disponível até ' + dataCurta(G.expiraEm));
-    el('capaSub').textContent = partes.join(' · ');
+    /* base da capa: cliente + nº de fotos (sem disponibilidade) */
+    var cliEl = el('capaCliente');
+    if (cliEl) {
+      if (G.cliente) { cliEl.textContent = G.cliente; cliEl.hidden = false; }
+      else cliEl.hidden = true;
+    }
+    el('capaSub').textContent = G.total + (G.total === 1 ? ' fotografia' : ' fotografias');
 
     var fundo = G.capa || (G.fotos && G.fotos[0]);
     if (fundo) {
