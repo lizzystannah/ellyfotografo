@@ -85,6 +85,7 @@ const mysqlDb = process.env.MYSQL_DATABASE;
 const mysqlPort = parseInt(process.env.MYSQL_PORT || '3306', 10);
 
 let dbPool = null;
+let dbPronto = false; /* só sincroniza para o MySQL depois da carga inicial (evita apagar o banco com lista vazia) */
 if (mysqlHost && mysqlUser && mysqlDb) {
   try {
     dbPool = mysql.createPool({
@@ -126,6 +127,12 @@ async function inicializarMySQL() {
     try {
       await dbPool.query(`ALTER TABLE galerias ADD COLUMN senha VARCHAR(100) DEFAULT 'li fotógrafo';`);
     } catch (eCol) {}
+    try {
+      await dbPool.query(`ALTER TABLE galerias ADD COLUMN fotos_meta JSON;`);
+    } catch (eCol) {}
+    try {
+      await dbPool.query(`ALTER TABLE galerias ADD COLUMN ordem_fotos VARCHAR(20) DEFAULT 'captura';`);
+    } catch (eCol) {}
     await dbPool.query(`
       CREATE TABLE IF NOT EXISTS clientes (
         id VARCHAR(100) PRIMARY KEY,
@@ -136,9 +143,126 @@ async function inicializarMySQL() {
         criado_em VARCHAR(50)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+    try {
+      await dbPool.query(`ALTER TABLE clientes ADD COLUMN senha VARCHAR(100);`);
+    } catch (eCol) {}
     console.log('✓ Tabelas do MySQL inicializadas com sucesso.');
+    await carregarDoMySQL();
   } catch (e) {
     console.warn('Aviso ao criar tabelas MySQL:', e.message);
+  }
+}
+
+/* ---------------- MySQL como fonte persistente (galerias + clientes) ---------------- */
+/* As fotos ficam no R2; aqui ficam só as referências (URLs) e metadados. O JSON local
+   continua como backup/fallback se o MySQL estiver indisponível. */
+
+function linhaParaGaleria(r) {
+  const pick = (v, fb) => (v === undefined || v === null ? fb : v);
+  let fotos = [];
+  try { fotos = typeof r.fotos === 'string' ? JSON.parse(r.fotos) : (r.fotos || []); } catch (e) { fotos = []; }
+  let selecao = null;
+  try { selecao = typeof r.selecao === 'string' ? JSON.parse(r.selecao) : (r.selecao || null); } catch (e) { selecao = null; }
+  let fotosMeta = {};
+  try { fotosMeta = typeof r.fotos_meta === 'string' ? JSON.parse(r.fotos_meta) : (r.fotos_meta || {}); } catch (e) { fotosMeta = {}; }
+  return {
+    id: r.id,
+    slug: r.slug,
+    nome: r.nome,
+    dias: Number(pick(r.dias, 30)) || 30,
+    expiraEm: pick(r.expira_em, null),
+    capa: pick(r.capa, null),
+    fotos: Array.isArray(fotos) ? fotos : [],
+    privada: !!r.privada,
+    senha: pick(r.senha, 'ellyfotografo'),
+    clienteId: pick(r.cliente_id, null),
+    selecao,
+    criadaEm: pick(r.criada_em, null),
+    fotosMeta: fotosMeta && typeof fotosMeta === 'object' ? fotosMeta : {},
+    ordemFotos: pick(r.ordem_fotos, 'captura')
+  };
+}
+
+function linhaParaCliente(r) {
+  const pick = (v, fb) => (v === undefined || v === null ? fb : v);
+  return {
+    id: r.id,
+    nome: pick(r.nome, ''),
+    whatsapp: pick(r.whatsapp, ''),
+    fotosContratadas: pick(r.fotos_contratadas, ''),
+    precoExtra: pick(r.preco_extra, ''),
+    criadoEm: pick(r.criado_em, null),
+    senha: pick(r.senha, null)
+  };
+}
+
+async function carregarDoMySQL() {
+  if (!dbPool) return;
+  try {
+    const [linhasG] = await dbPool.query('SELECT * FROM galerias');
+    const [linhasC] = await dbPool.query('SELECT * FROM clientes');
+    if (Array.isArray(linhasG) && linhasG.length) {
+      galerias = linhasG.map(linhaParaGaleria);
+      try { gravarJson('galerias.json', galerias); } catch (e) {}
+      console.log(`✓ Galerias carregadas do MySQL (${galerias.length}).`);
+    } else if (Array.isArray(linhasG) && galerias.length) {
+      /* banco vazio mas JSON local tem dados (primeira migração): sobe o JSON para o banco */
+      await sincronizarGaleriasMySQL();
+      console.log(`✓ Galerias migradas do JSON para o MySQL (${galerias.length}).`);
+    }
+    if (Array.isArray(linhasC) && linhasC.length) {
+      clientes = linhasC.map(linhaParaCliente);
+      try { gravarJson('clientes.json', clientes); } catch (e) {}
+      console.log(`✓ Clientes carregados do MySQL (${clientes.length}).`);
+    } else if (Array.isArray(linhasC) && clientes.length) {
+      await sincronizarClientesMySQL();
+    }
+    dbPronto = true;
+  } catch (e) {
+    console.warn('Aviso ao carregar do MySQL (segue com JSON local):', e.message);
+    dbPronto = true; /* permite sincronizar nas próximas gravações */
+  }
+}
+
+async function sincronizarGaleriasMySQL() {
+  if (!dbPool) return;
+  const ids = galerias.map(g => g.id);
+  for (const g of galerias) {
+    await dbPool.query(
+      `INSERT INTO galerias (id, slug, nome, dias, expira_em, capa, fotos, privada, senha, cliente_id, selecao, criada_em, fotos_meta, ordem_fotos)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE slug=VALUES(slug), nome=VALUES(nome), dias=VALUES(dias), expira_em=VALUES(expira_em),
+         capa=VALUES(capa), fotos=VALUES(fotos), privada=VALUES(privada), senha=VALUES(senha), cliente_id=VALUES(cliente_id),
+         selecao=VALUES(selecao), criada_em=VALUES(criada_em), fotos_meta=VALUES(fotos_meta), ordem_fotos=VALUES(ordem_fotos)`,
+      [g.id, g.slug, g.nome, g.dias || 30, g.expiraEm || null, g.capa || null,
+       JSON.stringify(g.fotos || []), g.privada ? 1 : 0, g.senha || 'ellyfotografo',
+       g.clienteId || null, g.selecao ? JSON.stringify(g.selecao) : null,
+       g.criadaEm || null, JSON.stringify(g.fotosMeta || {}), g.ordemFotos || 'captura']
+    );
+  }
+  if (ids.length) {
+    const ph = ids.map(() => '?').join(',');
+    await dbPool.query(`DELETE FROM galerias WHERE id NOT IN (${ph})`, ids);
+  }
+}
+
+async function sincronizarClientesMySQL() {
+  if (!dbPool) return;
+  const ids = clientes.map(c => c.id);
+  for (const c of clientes) {
+    await dbPool.query(
+      `INSERT INTO clientes (id, nome, whatsapp, fotos_contratadas, preco_extra, criado_em, senha)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE nome=VALUES(nome), whatsapp=VALUES(whatsapp),
+         fotos_contratadas=VALUES(fotos_contratadas), preco_extra=VALUES(preco_extra),
+         criado_em=VALUES(criado_em), senha=VALUES(senha)`,
+      [c.id, c.nome || '', c.whatsapp || '', c.fotosContratadas || '', c.precoExtra || '',
+       c.criadoEm || null, c.senha || null]
+    );
+  }
+  if (ids.length) {
+    const ph = ids.map(() => '?').join(',');
+    await dbPool.query(`DELETE FROM clientes WHERE id NOT IN (${ph})`, ids);
   }
 }
 
@@ -184,8 +308,18 @@ if (templatesLanding.length === 0 && estadoLanding && typeof estadoLanding === '
   gravarJson('templates_landing.json', templatesLanding);
 }
 
-const guardarGalerias = () => gravarJson('galerias.json', galerias);
-const guardarClientes = () => gravarJson('clientes.json', clientes);
+const guardarGalerias = () => {
+  gravarJson('galerias.json', galerias);
+  if (dbPool && dbPronto) {
+    sincronizarGaleriasMySQL().catch(e => console.warn('Aviso sync galerias MySQL:', e.message));
+  }
+};
+const guardarClientes = () => {
+  gravarJson('clientes.json', clientes);
+  if (dbPool && dbPronto) {
+    sincronizarClientesMySQL().catch(e => console.warn('Aviso sync clientes MySQL:', e.message));
+  }
+};
 const guardarTemplatesLanding = () => gravarJson('templates_landing.json', templatesLanding);
 
 /* ---------------- sessões (persistidas em dados/sessoes.json) ---------------- */
