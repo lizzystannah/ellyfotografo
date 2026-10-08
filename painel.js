@@ -44,7 +44,92 @@
 
   /* ---------------- utilidades ---------------- */
 
+  /* ---------------- avisos e perguntas dentro do site ---------------- */
+
   function el(id) { return document.getElementById(id); }
+  function toast(msg, tipo) {
+    var caixa = el('toasts');
+    if (!caixa) { try { alert(msg); } catch (e) {} return; }
+    var t = document.createElement('div');
+    t.className = 'toast ' + (tipo || 'info');
+    var s = document.createElement('span');
+    s.textContent = msg;
+    var x = document.createElement('button');
+    x.type = 'button';
+    x.textContent = '✕';
+    x.setAttribute('aria-label', 'Fechar aviso');
+    x.onclick = function () { if (t.parentNode) t.parentNode.removeChild(t); };
+    t.appendChild(s);
+    t.appendChild(x);
+    caixa.appendChild(t);
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 5000);
+  }
+
+  var modalResolver = null;
+  function fecharModal(valor) {
+    el('modal').hidden = true;
+    el('fundoModal').hidden = true;
+    document.body.style.overflow = '';
+    var r = modalResolver;
+    modalResolver = null;
+    if (r) r(valor);
+  }
+
+  function abrirModal(op) {
+    var o = op || {};
+    el('modalTitulo').textContent = o.titulo || 'Confirmar';
+    el('modalTexto').textContent = o.texto || '';
+    var wrap = el('modalCampoWrap');
+    var campo = el('modalCampo');
+    var temCampo = !!o.campo;
+    wrap.hidden = !temCampo;
+    if (temCampo) {
+      campo.value = o.valorInicial || '';
+      campo.placeholder = o.placeholder || '';
+      campo.type = o.tipoCampo || 'text';
+      if (o.inputMode) campo.inputMode = o.inputMode; else campo.removeAttribute('inputmode');
+    }
+    var ok = el('modalOk');
+    ok.textContent = o.ok || 'Confirmar';
+    ok.classList.toggle('perigo', !!o.perigo);
+    el('modalCancelar').textContent = o.cancelar || 'Cancelar';
+    el('fundoModal').hidden = false;
+    el('modal').hidden = false;
+    document.body.style.overflow = 'hidden';
+    return new Promise(function (res) {
+      modalResolver = res;
+      if (temCampo) setTimeout(function () { campo.focus(); campo.select(); }, 60);
+    });
+  }
+
+  if (el('modalCancelar')) el('modalCancelar').addEventListener('click', function () { fecharModal(false); });
+  if (el('fundoModal')) el('fundoModal').addEventListener('click', function () { fecharModal(false); });
+  if (el('modalOk')) el('modalOk').addEventListener('click', function () {
+    var wrap = el('modalCampoWrap');
+    if (wrap && !wrap.hidden) fecharModal(el('modalCampo').value);
+    else fecharModal(true);
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && modalResolver) fecharModal(false);
+    if (ev.key === 'Enter' && modalResolver && el('modal') && !el('modal').hidden) {
+      ev.preventDefault();
+      el('modalOk').click();
+    }
+  });
+
+  /* pergunta sim/não → Promise<boolean> */
+  function confirmar(titulo, texto, okTxt, perigo) {
+    return abrirModal({ titulo: titulo, texto: texto, ok: okTxt || 'Confirmar', perigo: perigo });
+  }
+
+  /* pede um valor em texto → Promise<string|null> (null = cancelou) */
+  function perguntar(titulo, texto, valorInicial, okTxt) {
+    return abrirModal({ titulo: titulo, texto: texto, campo: true, valorInicial: valorInicial, ok: okTxt || 'Guardar' })
+      .then(function (v) {
+        if (v === false) return null;
+        return v;
+      });
+  }
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
@@ -297,10 +382,13 @@
       if (controlo.hasAttribute('data-apagar')) {
         var g = galerias.find(function (x) { return x.id === controlo.dataset.apagar; });
         if (!g) return;
-        if (!confirm('Apagar "' + g.nome + '"?')) return;
-        api('/galerias/' + encodeURIComponent(g.id), { method: 'DELETE' })
-          .then(carregarGalerias)
-          .catch(function (e) { alert(e.message); });
+        confirmar('Apagar galeria?', '«' + g.nome + '» será apagada definitivamente, incluindo as fotografias.', 'Apagar', true)
+          .then(function (ok) {
+            if (!ok) return null;
+            return api('/galerias/' + encodeURIComponent(g.id), { method: 'DELETE' })
+              .then(carregarGalerias);
+          })
+          .catch(function (e) { toast(e.message, 'erro'); });
         return;
       }
       if (controlo.hasAttribute('data-editar')) {
@@ -387,8 +475,9 @@
 
   el('novaGaleria').addEventListener('click', function () { abrirAssistente(null); });
   el('astFechar').addEventListener('click', function () {
-    if (actual.passo > 1 && !confirm('Fechar e perder o que falta?')) return;
-    fecharAssistente();
+    if (actual.passo <= 1) { fecharAssistente(); return; }
+    confirmar('Fechar sem concluir?', 'Vais perder o que ainda falta neste assistente.', 'Fechar', true)
+      .then(function (ok) { if (ok) fecharAssistente(); });
   });
 
   /* Função auxiliar para animar e processar a foto com progresso, desfoque (unblur) e leve compressão mantendo orientação original */
@@ -485,7 +574,7 @@
       };
       reader.onerror = function () {
         clearInterval(stepTimer);
-        alert('Erro ao processar a fotografia ' + ficheiro.name);
+        toast('Erro ao processar a fotografia ' + ficheiro.name, 'erro');
       };
       reader.readAsDataURL(ficheiro);
     }
@@ -751,13 +840,13 @@
 
   function validarPasso() {
     if (actual.passo === 1) {
-      if (!el('gNome').value.trim()) { alert('Dá um nome à galeria.'); return false; }
+      if (!el('gNome').value.trim()) { toast('Dá um nome à galeria.', 'aviso'); return false; }
       if (actual.id) return true;   // já criada
       return true;
     }
     if (actual.passo === 3) {
       var privada = ast.querySelector('input[name="acesso"]:checked').value === 'privada';
-      if (privada && !el('cNome').value.trim()) { alert('Falta o nome do cliente.'); return false; }
+      if (privada && !el('cNome').value.trim()) { toast('Falta o nome do cliente.', 'aviso'); return false; }
     }
     return true;
   }
@@ -849,7 +938,7 @@
         mostrarPasso(actual.passo + 1);
         if (actual.passo === 4) preencherResumo();
       })
-      .catch(function (e) { alert(e.message); })
+      .catch(function (e) { toast(e.message, 'erro'); })
       .then(function () { el('astSeguinte').disabled = false; });
   });
 
@@ -878,9 +967,17 @@
   function abrirDetalhe(g) {
     galeriaDetalhe = g;
     el('dNome').textContent = g.nome;
-    el('dEstado').textContent =
-      (ROTULO_ESTADO[g.estado] || '—') + ' · expira ' + dataCurta(g.expiraEm) +
-      ' · ' + (g.privada ? 'privada' : 'pública');
+    var expirou = g.expiraEm && Date.parse(g.expiraEm) < Date.now();
+    var rotulo = ROTULO_ESTADO[g.estado] || '—';
+    var classePill = 'e-aguardar';
+    if (g.estado === 'concluida') classePill = 'e-concluida';
+    else if (g.estado === 'em_seleccao') classePill = 'e-seleccao';
+    else if (g.estado === 'sem_fotos') classePill = 'e-vazia';
+    if (expirou) classePill = 'e-expirada';
+    el('dEstado').innerHTML =
+      '<span class="det-estado-pill ' + classePill + '">' + esc(expirou ? 'Expirada' : rotulo) + '</span>' +
+      '<span> · ' + (expirou ? 'expirou ' : 'expira ') + dataCurta(g.expiraEm) +
+      ' · ' + (g.privada ? 'privada' : 'pública') + '</span>';
     el('dTotal').textContent = g.fotos.length;
     el('dSemFotos').hidden = g.fotos.length > 0;
     el('dFotos').innerHTML = g.fotos.map(function (f, i) {
@@ -892,17 +989,25 @@
         '<img src="' + esc(f) + '" alt="Fotografia ' + (i + 1) + '" loading="lazy">' + tag + '</div>';
     }).join('');
 
-    var expirou = g.expiraEm && Date.parse(g.expiraEm) < Date.now();
+    var linkAcesso = location.origin + '/g/' + g.slug;
     el('dInfo').innerHTML = [
-      ['Cliente', g.cliente ? g.cliente.nome : 'sem cliente registado'],
-      ['WhatsApp', g.cliente && g.cliente.whatsapp ? g.cliente.whatsapp : '—'],
+      ['Cliente', g.cliente ? esc(g.cliente.nome) : 'sem cliente registado'],
+      ['WhatsApp', g.cliente && g.cliente.whatsapp ? esc(g.cliente.whatsapp) : '—'],
       ['Palavra-passe', esc(g.senha || (g.cliente && g.cliente.senha) || 'ellyfotografo')],
-      ['Fotos contratadas', g.cliente && g.cliente.fotosContratadas ? g.cliente.fotosContratadas : '—'],
+      ['Fotos contratadas', g.cliente && g.cliente.fotosContratadas ? esc(g.cliente.fotosContratadas) : '—'],
       ['Preço por foto extra', g.cliente && g.cliente.precoExtra ? esc(g.cliente.precoExtra) + ' Kz' : '—'],
-      ['Link de acesso', esc(location.origin + '/g/' + g.slug)],
+      ['Link de acesso', '<a href="' + esc(linkAcesso) + '" target="_blank" rel="noopener">' + esc(linkAcesso) + '</a><button type="button" class="det-link-copiar" id="dCopiarLink">Copiar</button>'],
       ['Validade', (g.expiraEm ? dataCurta(g.expiraEm) : '—') + (expirou ? ' <b style="color:var(--verm);">(Expirada)</b>' : '')],
       ['Criada em', dataCurta(g.criadaEm)]
     ].map(function (l) { return '<dt>' + l[0] + '</dt><dd>' + l[1] + '</dd>'; }).join('');
+    var btnCopiar = el('dCopiarLink');
+    if (btnCopiar) {
+      btnCopiar.onclick = function () {
+        copiarTexto(linkAcesso);
+        btnCopiar.textContent = 'Copiado!';
+        setTimeout(function () { btnCopiar.textContent = 'Copiar'; }, 2000);
+      };
+    }
 
     var link = location.origin + '/g/' + g.slug;
     el('dAbrir').href = link;
@@ -957,7 +1062,7 @@
     /* duas versões do mesmo arquivo: JPEG (como antes) + RAW (.CR3),
        para separares os RAWs com a mesma ferramenta sem trabalho manual */
     function descarregarNomes(nomes, ficheiro) {
-      if (!nomes.length) { alert('Esta seleção ainda não tem fotografias.'); return; }
+      if (!nomes.length) { toast('Esta seleção ainda não tem fotografias.', 'aviso'); return; }
       /* exactamente como o formato pedido: um nome por linha, LF, sem linha final */
       var blob = new Blob([nomes.join('\n')], { type: 'text/plain;charset=utf-8' });
       var url = URL.createObjectURL(blob);
@@ -994,45 +1099,50 @@
   function reativarGaleriaPrompt(g) {
     if (!g) return;
     var diasDef = String(g.dias || 30);
-    var diasStr = prompt('Por quantos dias pretendes reativar a galeria "' + g.nome + '"?', diasDef);
-    if (!diasStr) return;
-    var dias = parseInt(diasStr, 10);
-    if (!(dias > 0)) { alert('Por favor, indica um número de dias válido.'); return; }
+    perguntar('Reativar galeria', 'Por quantos dias pretendes reativar «' + g.nome + '»?', diasDef, 'Reativar')
+      .then(function (diasStr) {
+        if (diasStr === null) return null;
+        var dias = parseInt(diasStr, 10);
+        if (!(dias > 0)) { toast('Por favor, indica um número de dias válido.', 'aviso'); return null; }
 
-    api('/galerias/' + encodeURIComponent(g.id), {
-      method: 'PUT',
-      body: { reativar: true, dias: dias }
-    }).then(function (atualizada) {
-      var idx = galerias.findIndex(function (x) { return x.id === g.id; });
-      if (idx !== -1) galerias[idx] = atualizada;
-      desenharGalerias();
-      if (galeriaDetalhe && galeriaDetalhe.id === g.id) {
-        abrirDetalhe(atualizada);
-      }
+        return api('/galerias/' + encodeURIComponent(g.id), {
+          method: 'PUT',
+          body: { reativar: true, dias: dias }
+        }).then(function (atualizada) {
+          var idx = galerias.findIndex(function (x) { return x.id === g.id; });
+          if (idx !== -1) galerias[idx] = atualizada;
+          desenharGalerias();
+          if (galeriaDetalhe && galeriaDetalhe.id === g.id) {
+            abrirDetalhe(atualizada);
+          }
 
-      var linkAcesso = location.origin + '/g/' + atualizada.slug;
-      var senhaAcesso = atualizada.senha || (atualizada.cliente && atualizada.cliente.senha) || 'ellyfotografo';
-      var resumoReativada = [
-        '🎉 *Galeria Reativada · Elly Fotógrafo*',
-        'Galeria: ' + atualizada.nome,
-        (atualizada.cliente && atualizada.cliente.nome ? '👤 Cliente: ' + atualizada.cliente.nome : ''),
-        (atualizada.cliente && atualizada.cliente.whatsapp ? '📱 WhatsApp: ' + atualizada.cliente.whatsapp : ''),
-        '🔗 Link: ' + linkAcesso,
-        '🔑 Palavra-passe: ' + senhaAcesso,
-        '⏳ Novo prazo: até ' + dataCurta(atualizada.expiraEm) + ' (' + dias + ' dias)'
-      ].filter(Boolean).join('\n');
+          var linkAcesso = location.origin + '/g/' + atualizada.slug;
+          var senhaAcesso = atualizada.senha || (atualizada.cliente && atualizada.cliente.senha) || 'ellyfotografo';
+          var resumoReativada = [
+            '🎉 *Galeria Reativada · Elly Fotógrafo*',
+            'Galeria: ' + atualizada.nome,
+            (atualizada.cliente && atualizada.cliente.nome ? '👤 Cliente: ' + atualizada.cliente.nome : ''),
+            (atualizada.cliente && atualizada.cliente.whatsapp ? '📱 WhatsApp: ' + atualizada.cliente.whatsapp : ''),
+            '🔗 Link: ' + linkAcesso,
+            '🔑 Palavra-passe: ' + senhaAcesso,
+            '⏳ Novo prazo: até ' + dataCurta(atualizada.expiraEm) + ' (' + dias + ' dias)'
+          ].filter(Boolean).join('\n');
 
-      copiarTexto(resumoReativada);
-      if (atualizada.cliente && atualizada.cliente.whatsapp) {
-        if (confirm('Galeria reativada com sucesso até ' + dataCurta(atualizada.expiraEm) + '!\nOs dados de acesso foram copiados.\n\nPretendes abrir o WhatsApp para reenviar ao cliente agora?')) {
-          window.open(linkWa(atualizada.cliente.whatsapp, resumoReativada), '_blank', 'noopener');
-        }
-      } else {
-        alert('Galeria reativada com sucesso até ' + dataCurta(atualizada.expiraEm) + '!\nOs dados de acesso foram copiados para a área de transferência.');
-      }
-    }).catch(function (e) {
-      alert('Erro ao reativar galeria: ' + e.message);
-    });
+          copiarTexto(resumoReativada);
+          if (atualizada.cliente && atualizada.cliente.whatsapp) {
+            return confirmar(
+              'Galeria reativada!',
+              'Nova validade: ' + dataCurta(atualizada.expiraEm) + '. Os dados de acesso foram copiados. Pretendes abrir o WhatsApp para reenviar ao cliente agora?',
+              'Abrir WhatsApp'
+            ).then(function (ok) {
+              if (ok) window.open(linkWa(atualizada.cliente.whatsapp, resumoReativada), '_blank', 'noopener');
+            });
+          }
+          toast('Galeria reativada até ' + dataCurta(atualizada.expiraEm) + '! Dados copiados.', 'ok');
+        }).catch(function (e) {
+          toast('Erro ao reativar galeria: ' + e.message, 'erro');
+        });
+      });
   }
 
   function reordenarGaleriaServidor(id, criterio) {
@@ -1048,9 +1158,9 @@
       var msg = criterio === 'captura'
         ? 'Galeria organizada por horário de captura (cronológico)! Câmeras sincronizadas.'
         : (criterio === 'nome' ? 'Galeria organizada por nome de ficheiro (A-Z)!' : 'Ordem invertida com sucesso!');
-      alert('✓ ' + msg);
+      toast('✓ ' + msg, 'ok');
     }).catch(function (e) {
-      alert('Erro ao reorganizar: ' + e.message);
+      toast('Erro ao reorganizar: ' + e.message, 'erro');
     });
   }
 
@@ -1089,11 +1199,14 @@
   });
   el('dApagar').addEventListener('click', function () {
     if (!galeriaDetalhe) return;
-    if (!confirm('Apagar "' + galeriaDetalhe.nome + '"?')) return;
     var id = galeriaDetalhe.id;
-    api('/galerias/' + encodeURIComponent(id), { method: 'DELETE' })
-      .then(function () { fecharDetalhe(); carregarGalerias(); })
-      .catch(function (e) { alert(e.message); });
+    confirmar('Apagar galeria?', '«' + galeriaDetalhe.nome + '» será apagada definitivamente, incluindo as fotografias.', 'Apagar', true)
+      .then(function (ok) {
+        if (!ok) return null;
+        return api('/galerias/' + encodeURIComponent(id), { method: 'DELETE' })
+          .then(function () { fecharDetalhe(); carregarGalerias(); });
+      })
+      .catch(function (e) { toast(e.message, 'erro'); });
   });
 
   /* ================= CONTACTOS ================= */
@@ -1296,20 +1409,23 @@
   });
 
   el('reporLanding').addEventListener('click', function () {
-    if (!confirm('Deseja repor todos os textos, fotografias e secções para o padrão original de fábrica?')) return;
-    try {
-      localStorage.removeItem(CHAVE_LANDING);
-      if (frame && frame.contentWindow && frame.contentWindow.localStorage) {
-        frame.contentWindow.localStorage.removeItem(CHAVE_LANDING);
-      }
-    } catch (e) {}
+    confirmar('Repor padrão original?', 'Todos os textos, fotografias e secções voltam ao padrão original de fábrica.', 'Repor', true)
+      .then(function (ok) {
+        if (!ok) return null;
+        try {
+          localStorage.removeItem(CHAVE_LANDING);
+          if (frame && frame.contentWindow && frame.contentWindow.localStorage) {
+            frame.contentWindow.localStorage.removeItem(CHAVE_LANDING);
+          }
+        } catch (e) {}
 
-    api('/landing', { method: 'POST', body: { estado: null } })
-      .then(function () {
-        carregarFrame();
-        el('notaLanding').innerHTML = '✓ Padrão original de fábrica restaurado com sucesso!';
+        return api('/landing', { method: 'POST', body: { estado: null } })
+          .then(function () {
+            carregarFrame();
+            el('notaLanding').innerHTML = '✓ Padrão original de fábrica restaurado com sucesso!';
+          });
       })
-      .catch(function (e) { alert('Erro ao repor: ' + e.message); });
+      .catch(function (e) { toast('Erro ao repor: ' + e.message, 'erro'); });
   });
 
   el('guardarLanding').addEventListener('click', function () {
@@ -1541,7 +1657,7 @@
             carregarTemplates();
           })
           .catch(function (err) {
-            alert('Erro ao efetivar template: ' + (e.message || err.message));
+            toast('Erro ao efetivar template: ' + (e.message || err.message), 'erro');
           });
       });
   }
@@ -1563,22 +1679,24 @@
   function eliminarTemplate(id) {
     var tpl = templatesArmazenados.find(function (x) { return x.id === id; });
     var nome = tpl ? tpl.nome : 'este template';
-    if (!confirm('Tem a certeza que deseja eliminar “' + nome + '”? Esta ação liberta uma vaga dos 4 templates.')) return;
-
-    api('/templates-landing/' + encodeURIComponent(id), { method: 'DELETE' })
-      .then(function () {
-        el('notaLanding').innerHTML = '✓ Template “' + esc(nome) + '” eliminado com sucesso.';
-        carregarTemplates();
-      })
-      .catch(function (e) {
-        fetch('/api/pub/templates-landing/' + encodeURIComponent(id), { method: 'DELETE' })
-          .then(function (r) { return r.json(); })
+    confirmar('Eliminar template?', '«' + nome + '» será eliminado. Esta ação liberta uma vaga dos 4 templates.', 'Eliminar', true)
+      .then(function (ok) {
+        if (!ok) return null;
+        return api('/templates-landing/' + encodeURIComponent(id), { method: 'DELETE' })
           .then(function () {
             el('notaLanding').innerHTML = '✓ Template “' + esc(nome) + '” eliminado com sucesso.';
             carregarTemplates();
           })
-          .catch(function (err) {
-            alert('Erro ao eliminar template: ' + (e.message || err.message));
+          .catch(function (e) {
+            return fetch('/api/pub/templates-landing/' + encodeURIComponent(id), { method: 'DELETE' })
+              .then(function (r) { return r.json(); })
+              .then(function () {
+                el('notaLanding').innerHTML = '✓ Template “' + esc(nome) + '” eliminado com sucesso.';
+                carregarTemplates();
+              })
+              .catch(function (err) {
+                toast('Erro ao eliminar template: ' + (e.message || err.message), 'erro');
+              });
           });
       });
   }
@@ -1587,82 +1705,85 @@
   if (btnSalvarNovo) {
     btnSalvarNovo.addEventListener('click', function () {
       if (templatesArmazenados.length >= 4) {
-        alert('Já tem 4 templates guardados (limite máximo atingido). Elimine um template existente para poder guardar um novo.');
+        toast('Já tem 4 templates guardados (limite máximo atingido). Elimine um template existente para poder guardar um novo.', 'aviso');
         return;
       }
 
       var agora = new Date();
       var sugestao = 'Template ' + (templatesArmazenados.length + 1) + ' · ' + agora.toLocaleDateString('pt-PT') + ' ' + agora.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
-      var nome = prompt('Digite um nome para este template:', sugestao);
-      if (!nome) return;
-      nome = nome.trim() || sugestao;
+      perguntar('Guardar template', 'Dá um nome a esta versão do site:', sugestao, 'Continuar')
+        .then(function (nomeResp) {
+          if (nomeResp === null) return null;
+          var nome = (nomeResp || '').trim() || sugestao;
 
-      var estadoAtual = null;
-      try {
-        if (frame && frame.contentWindow && typeof frame.contentWindow.__obterEstadoLanding === 'function') {
-          estadoAtual = frame.contentWindow.__obterEstadoLanding();
-        }
-      } catch (e) {}
-
-      if (!estadoAtual) {
-        var bruto = localStorage.getItem(CHAVE_LANDING);
-        if (bruto) {
-          try { estadoAtual = JSON.parse(bruto); } catch (e) {}
-        }
-      }
-
-      function obterEstadoFinal() {
-        if (estadoAtual && (Object.keys(estadoAtual.textos || {}).length > 0 || (estadoAtual.seccoesDuplicadas && estadoAtual.seccoesDuplicadas.length > 0))) {
-          return Promise.resolve(estadoAtual);
-        }
-        return fetch('/api/pub/landing')
-          .then(function (r) { return r.json(); })
-          .then(function (res) {
-            return (res && res.estado) ? res.estado : (estadoAtual || {});
-          })
-          .catch(function () {
-            return estadoAtual || {};
-          });
-      }
-
-      var ativarImediatamente = confirm('Deseja ativar este template imediatamente como o design oficial no site principal?');
-
-      obterEstadoFinal().then(function (estadoParaEnviar) {
-        return api('/templates-landing', {
-          method: 'POST',
-          body: {
-            nome: nome,
-            estado: estadoParaEnviar,
-            ativarImediatamente: ativarImediatamente
-          }
-        })
-          .then(function () {
-            el('notaLanding').innerHTML = '✓ Template “<strong>' + esc(nome) + '</strong>” guardado com sucesso!' +
-              (ativarImediatamente ? ' Já está ativo no site principal.' : '');
-            if (ativarImediatamente && estadoParaEnviar) {
-              notificarLandingAtualizada(estadoParaEnviar);
+          var estadoAtual = null;
+          try {
+            if (frame && frame.contentWindow && typeof frame.contentWindow.__obterEstadoLanding === 'function') {
+              estadoAtual = frame.contentWindow.__obterEstadoLanding();
             }
-            carregarTemplates();
-          })
-          .catch(function (e) {
-            return fetch('/api/pub/templates-landing', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                nome: nome,
-                estado: estadoParaEnviar,
-                ativarImediatamente: ativarImediatamente
+          } catch (e) {}
+
+          if (!estadoAtual) {
+            var bruto = localStorage.getItem(CHAVE_LANDING);
+            if (bruto) {
+              try { estadoAtual = JSON.parse(bruto); } catch (e) {}
+            }
+          }
+
+          function obterEstadoFinal() {
+            if (estadoAtual && (Object.keys(estadoAtual.textos || {}).length > 0 || (estadoAtual.seccoesDuplicadas && estadoAtual.seccoesDuplicadas.length > 0))) {
+              return Promise.resolve(estadoAtual);
+            }
+            return fetch('/api/pub/landing')
+              .then(function (r) { return r.json(); })
+              .then(function (res) {
+                return (res && res.estado) ? res.estado : (estadoAtual || {});
               })
-            }).then(function (r) { return r.json(); })
-              .then(function () {
-                el('notaLanding').innerHTML = '✓ Template “<strong>' + esc(nome) + '</strong>” guardado com sucesso!';
-                carregarTemplates();
-              })
-              .catch(function (err) {
-                alert('Erro ao guardar template: ' + (e.message || err.message));
+              .catch(function () {
+                return estadoAtual || {};
+              });
+          }
+
+          return obterEstadoFinal().then(function (estadoParaEnviar) {
+            return confirmar('Ativar já?', 'Desejas ativar «' + nome + '» imediatamente como o design oficial no site principal?', 'Guardar e ativar')
+              .then(function (ativarImediatamente) {
+                return api('/templates-landing', {
+                  method: 'POST',
+                  body: {
+                    nome: nome,
+                    estado: estadoParaEnviar,
+                    ativarImediatamente: ativarImediatamente
+                  }
+                })
+                  .then(function () {
+                    el('notaLanding').innerHTML = '✓ Template “<strong>' + esc(nome) + '</strong>” guardado com sucesso!' +
+                      (ativarImediatamente ? ' Já está ativo no site principal.' : '');
+                    if (ativarImediatamente && estadoParaEnviar) {
+                      notificarLandingAtualizada(estadoParaEnviar);
+                    }
+                    carregarTemplates();
+                  })
+                  .catch(function (e) {
+                    return fetch('/api/pub/templates-landing', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        nome: nome,
+                        estado: estadoParaEnviar,
+                        ativarImediatamente: ativarImediatamente
+                      })
+                    }).then(function (r) { return r.json(); })
+                      .then(function () {
+                        el('notaLanding').innerHTML = '✓ Template “<strong>' + esc(nome) + '</strong>” guardado com sucesso!';
+                        carregarTemplates();
+                      })
+                      .catch(function (err) {
+                        toast('Erro ao guardar template: ' + (e.message || err.message), 'erro');
+                      });
+                  });
               });
           });
-      });
+        });
     });
   }
 

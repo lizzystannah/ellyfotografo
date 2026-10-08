@@ -683,6 +683,20 @@
     if (aberto < 0) document.body.style.overflow = '';
   }
 
+  /* avisos dentro do próprio resumo (sem popups do navegador) */
+  var notaOriginal = '';
+  function avisoResumo(msg) {
+    var n = el('rNota');
+    if (!n) { try { alert(msg); } catch (e) {} return; }
+    if (!notaOriginal) notaOriginal = n.textContent;
+    n.textContent = msg;
+    n.classList.add('aviso');
+    setTimeout(function () {
+      var n2 = el('rNota');
+      if (n2) { n2.textContent = notaOriginal; n2.classList.remove('aviso'); }
+    }, 4500);
+  }
+
   el('btnFinalizar').addEventListener('click', abrirResumo);
   el('rFechar').addEventListener('click', fecharResumo);
   el('rVoltar').addEventListener('click', fecharResumo);
@@ -690,7 +704,7 @@
   /* ---- PDF ---- */
   el('rPdf').addEventListener('click', function () {
     var b = el('rPdf');
-    if (!escolhidas.length) { alert('Ainda não escolheste nenhuma fotografia.'); return; }
+    if (!escolhidas.length) { avisoResumo('Ainda não escolheste nenhuma fotografia.'); return; }
     b.disabled = true; b.textContent = 'A gerar…';
 
     var L = limite(), P = preco(), ex = extras();
@@ -710,7 +724,7 @@
     }).then(function (bytes) {
       window.PDF.baixar(bytes, 'selecao-' + slug + '.pdf');
     }).catch(function (e) {
-      alert(e.message || 'Não consegui gerar o PDF.');
+      avisoResumo(e.message || 'Não consegui gerar o PDF.');
     }).then(function () {
       b.disabled = false; b.textContent = 'Descarregar PDF';
     });
@@ -718,7 +732,7 @@
 
   /* ---- concluir ---- */
   el('rConcluir').addEventListener('click', function () {
-    if (!escolhidas.length) { alert('Ainda não escolheste nenhuma fotografia.'); return; }
+    if (!escolhidas.length) { avisoResumo('Ainda não escolheste nenhuma fotografia.'); return; }
     var b = el('rConcluir');
     b.disabled = true; b.textContent = 'A guardar…';
     finalizada = true;
@@ -728,7 +742,7 @@
       enviarWhatsApp();
     }).catch(function (e) {
       finalizada = false;
-      alert(e.message || 'Não consegui guardar.');
+      avisoResumo(e.message || 'Não consegui guardar.');
     }).then(function () {
       b.disabled = false; b.textContent = 'Concluir seleção';
     });

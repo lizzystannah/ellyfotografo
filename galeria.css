@@ -604,6 +604,7 @@ button { font: inherit; }
 .resumo-acoes { display: flex; gap: 10px; flex-wrap: wrap; padding: 20px 24px 6px; }
 .resumo-acoes .btn { flex: 1 1 auto; }
 .resumo-nota { padding: 0 24px 24px; font-size: 13px; color: var(--suave); line-height: 1.55; }
+.resumo-nota.aviso { color: #b23b3b; font-weight: 600; }
 
 /* ================= MOBILE ================= */
 @media (max-width: 760px) {

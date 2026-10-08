@@ -289,8 +289,10 @@
       <h3 id="dSelTitulo">Seleção do cliente</h3>
       <div class="det-resumo" id="dResumo"></div>
       <div class="miniaturas" id="dMini"></div>
-      <button class="secundario" id="dNomes">Descarregar seleção (.selpics)</button>
-      <button class="secundario" id="dNomesRaw">Descarregar seleção RAW (.selpics)</button>
+      <div class="det-sel-botoes">
+        <button class="secundario" id="dNomes">Descarregar seleção (.selpics)</button>
+        <button class="secundario" id="dNomesRaw">Descarregar seleção RAW (.selpics)</button>
+      </div>
     </div>
 
     <div class="det-cabecalho-fotos">
@@ -315,6 +317,21 @@
 </section>
 
 <script src="/exifr.js"></script>
-<script src="/painel.js"></script>
+<script src="/painel.js">
+
+<!-- avisos e perguntas integrados no site (sem popups do navegador) -->
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="fundo" id="fundoModal" hidden></div>
+<section class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
+  <h3 id="modalTitulo">Confirmar</h3>
+  <p id="modalTexto"></p>
+  <div id="modalCampoWrap" hidden>
+    <input id="modalCampo" type="text" autocomplete="off">
+  </div>
+  <div class="modal-botoes">
+    <button class="secundario" id="modalCancelar" type="button">Cancelar</button>
+    <button class="primario" id="modalOk" type="button">Confirmar</button>
+  </div>
+</section>
 </body>
 </html>
