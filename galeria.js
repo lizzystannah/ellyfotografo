@@ -73,7 +73,7 @@
 
   function carregar() {
     if (!slug) { mostrarErro('Link inválido.'); return Promise.resolve('erro'); }
-    return fetch('/api/pub/galeria/' + encodeURIComponent(slug), { headers: cabecalho() })
+    return fetch('/api/pub/galeria/' + encodeURIComponent(slug), { headers: cabecalho(), cache: 'no-store' })
       .then(function (r) { return r.json().catch(function () { return { erro: 'Resposta inválida.' }; }); })
       .then(function (d) {
         if (d.expirada) { mostrarExpirada(d); return 'expirada'; }
@@ -396,6 +396,7 @@
     clearTimeout(gravarT);
     var fazer = function () {
       return fetch('/api/pub/galeria/' + encodeURIComponent(slug) + '/selecao', {
+        cache: 'no-store',
         method: 'POST',
         headers: (function () {
           var h = cabecalho(); h['Content-Type'] = 'application/json'; return h;
@@ -772,6 +773,12 @@
   }
 
   /* ================= arranque ================= */
+
+  /* sem isto, voltar à aba pelo histórico mostra o ecrã antigo (ex.: "link
+     fechado") sem ir ao servidor — força recarregar do zero */
+  window.addEventListener('pageshow', function (ev) {
+    if (ev.persisted) location.reload();
+  });
 
   carregar();
 })();
