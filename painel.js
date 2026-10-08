@@ -916,6 +916,7 @@
 
     el('dSel').hidden = true;
     el('dNomes').onclick = null;
+    el('dNomesRaw').onclick = null;
     detFundo.hidden = false;
     det.hidden = false;
 
@@ -953,19 +954,36 @@
       : 'Descarregar seleção (.selpics)';
     b.classList.toggle('primario', concluida);
     b.classList.toggle('secundario', !concluida);
-    b.onclick = function () {
-      var nomes = (s.nomes || []).slice();
+    /* duas versões do mesmo arquivo: JPEG (como antes) + RAW (.CR3),
+       para separares os RAWs com a mesma ferramenta sem trabalho manual */
+    function descarregarNomes(nomes, ficheiro) {
       if (!nomes.length) { alert('Esta seleção ainda não tem fotografias.'); return; }
       /* exactamente como o formato pedido: um nome por linha, LF, sem linha final */
       var blob = new Blob([nomes.join('\n')], { type: 'text/plain;charset=utf-8' });
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
       a.href = url;
-      a.download = nomeFicheiro(galeriaDetalhe.nome, galeriaDetalhe.slug) + '.selpics';
+      a.download = ficheiro;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    }
+    var baseSel = nomeFicheiro(galeriaDetalhe.nome, galeriaDetalhe.slug);
+    b.onclick = function () {
+      descarregarNomes((s.nomes || []).slice(), baseSel + '.selpics');
+    };
+    var r = el('dNomesRaw');
+    r.textContent = concluida
+      ? 'Descarregar seleção RAW concluída (.selpics)'
+      : 'Descarregar seleção RAW (.selpics)';
+    r.classList.toggle('primario', concluida);
+    r.classList.toggle('secundario', !concluida);
+    r.onclick = function () {
+      var crus = (s.nomes || []).map(function (n) {
+        return String(n).replace(/\.(jpe?g|png|webp|gif|avif)$/i, '.CR3');
+      });
+      descarregarNomes(crus, baseSel + '-RAW.selpics');
     };
   }
 
