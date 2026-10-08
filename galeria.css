@@ -225,34 +225,17 @@ button { font: inherit; }
   transition: max-width .25s ease;
 }
 
-/* Modo Compacto (Padrão: fotografias reduzidas para visão panorâmica e ampla) */
-.grelha.grelha-compacta {
-  column-count: 6;
+/* Grade: 3 ou 4 fotografias por linha, exato em qualquer ecrã */
+.grelha.grelha-cols-3 {
+  column-count: 3;
   column-gap: 12px;
 }
-@media (max-width: 1380px) {
-  .grelha.grelha-compacta { column-count: 5; column-gap: 12px; }
-}
-@media (max-width: 1024px) {
-  .grelha.grelha-compacta { column-count: 4; column-gap: 10px; }
-}
-@media (max-width: 680px) {
-  .grelha.grelha-compacta { column-count: 3; column-gap: 8px; padding: 12px 8px; }
-}
-@media (max-width: 420px) {
-  .grelha.grelha-compacta { column-count: 2; column-gap: 8px; padding: 10px 6px; }
-}
-
-/* Modo Confortável (Fotos ligeiramente maiores) */
-.grelha.grelha-confortavel {
+.grelha.grelha-cols-4 {
   column-count: 4;
-  column-gap: 16px;
-}
-@media (max-width: 1100px) {
-  .grelha.grelha-confortavel { column-count: 3; column-gap: 12px; }
+  column-gap: 12px;
 }
 @media (max-width: 680px) {
-  .grelha.grelha-confortavel { column-count: 2; column-gap: 10px; padding: 12px 8px; }
+  .grelha.grelha-cols-3, .grelha.grelha-cols-4 { column-gap: 8px; padding: 12px 8px; }
 }
 
 .foto {
@@ -448,6 +431,41 @@ button { font: inherit; }
   min-width: 0;
   position: relative;
   overflow: hidden;
+}
+/* Faixa do carrossel: 3 janelas (anterior | atual | seguinte), a do meio no ecrã.
+   Global (desktop e mobile): sem isto o visor fica vazio fora do mobile. */
+.visor-centro { touch-action: none; }
+.vfaixa {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  width: 300%;
+  flex: 0 0 300%;
+  will-change: transform;
+}
+.vfaixa > .vslide,
+.vfaixa > .vimg-container {
+  flex: 0 0 calc(100% / 3);
+  width: calc(100% / 3);
+  max-width: calc(100% / 3);
+  height: 100%;
+}
+.vslide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.vslide img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  border-radius: 4px;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 #vImg {
   max-width: 100%;
@@ -658,9 +676,8 @@ button { font: inherit; }
   .visor-centro {
     height: auto;
     padding: 0;
-    touch-action: none;
   }
-  #vImg {
+  #vImg, .vslide img {
     width: 100% !important;
     height: 100% !important;
     max-width: 100%;

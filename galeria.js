@@ -223,28 +223,32 @@
     im.src = url;
   }
 
-  var modoGrade = 'compacta';
+  var modoGrade = '3';
   function definirModoGrade(modo) {
+    /* migração dos modos antigos */
+    if (modo === 'compacta') modo = '4';
+    else if (modo !== '4') modo = '3';
     modoGrade = modo;
     var gEl = el('grelha');
     if (gEl) {
-      gEl.classList.toggle('grelha-compacta', modo === 'compacta');
-      gEl.classList.toggle('grelha-confortavel', modo === 'confortavel');
+      gEl.classList.toggle('grelha-cols-3', modo === '3');
+      gEl.classList.toggle('grelha-cols-4', modo === '4');
+      gEl.classList.remove('grelha-compacta', 'grelha-confortavel');
     }
-    if (el('btnGradeCompacta')) el('btnGradeCompacta').classList.toggle('on', modo === 'compacta');
-    if (el('btnGradeMedia')) el('btnGradeMedia').classList.toggle('on', modo === 'confortavel');
+    if (el('btnGrade3')) el('btnGrade3').classList.toggle('on', modo === '3');
+    if (el('btnGrade4')) el('btnGrade4').classList.toggle('on', modo === '4');
     try { localStorage.setItem('gal_grade_modo', modo); } catch (e) {}
   }
 
   function iniciarControlesGrade() {
-    var salvo = 'compacta';
-    try { salvo = localStorage.getItem('gal_grade_modo') || 'compacta'; } catch (e) {}
+    var salvo = '3';
+    try { salvo = localStorage.getItem('gal_grade_modo') || '3'; } catch (e) {}
     definirModoGrade(salvo);
-    if (el('btnGradeCompacta')) {
-      el('btnGradeCompacta').onclick = function () { definirModoGrade('compacta'); };
+    if (el('btnGrade3')) {
+      el('btnGrade3').onclick = function () { definirModoGrade('3'); };
     }
-    if (el('btnGradeMedia')) {
-      el('btnGradeMedia').onclick = function () { definirModoGrade('confortavel'); };
+    if (el('btnGrade4')) {
+      el('btnGrade4').onclick = function () { definirModoGrade('4'); };
     }
   }
 
@@ -476,59 +480,67 @@
     aberto = -1;
   }
 
+  /* ============ carrossel contínuo (anterior | atual | seguinte) ============ */
   var animandoVisor = false;
-  function pintarVisor(direcao) {
+  var assentFaixaTok = 0;
+  var slideW = 0;
+
+  function faixaEl() { return el('vFaixa'); }
+  function medirSlide() {
+    var cont = el('vImgContainer');
+    var w = (cont && cont.getBoundingClientRect) ? cont.getBoundingClientRect().width : 0;
+    if (!w) {
+      var c = el('visorCentro');
+      w = (c && c.clientWidth) || window.innerWidth || 360;
+    }
+    slideW = Math.max(1, Math.round(w));
+    return slideW;
+  }
+
+  function saltoFaixa() {
+    var f = faixaEl();
+    if (!f) return;
+    var W = slideW || medirSlide();
+    f.style.transition = 'none';
+    f.style.transform = 'translate3d(' + (-W) + 'px, 0, 0)';
+    f.style.opacity = '1';
+  }
+
+  function definirSlide(img, url) {
+    if (!img) return;
+    if (url) {
+      img.style.visibility = 'visible';
+      if (img.getAttribute('src') !== url) img.src = url;
+    } else {
+      img.removeAttribute('src');
+      img.style.visibility = 'hidden';
+    }
+  }
+
+  function ligarSlides() {
+    if (!G || !G.fotos) return;
+    definirSlide(el('vImgAnt'), G.fotos[aberto - 1]);
+    definirSlide(el('vImg'), G.fotos[aberto]);
+    definirSlide(el('vImgSeg'), G.fotos[aberto + 1]);
+  }
+
+  function comporFaixa() {
+    if (aberto < 0 || !G || !G.fotos || !G.fotos.length) return;
+    medirSlide();
+    ligarSlides();
+    saltoFaixa();
+    atualizarInfoVisor();
+  }
+
+  /* reposiciona sem mover (ex.: após selecionar) */
+  function pintarVisor() {
+    if (aberto < 0) return;
+    comporFaixa();
+  }
+
+  function atualizarInfoVisor() {
     if (aberto < 0 || !G || !G.fotos || !G.fotos.length) return;
     var url = G.fotos[aberto];
-    var img = el('vImg');
-    if (!img) return;
-
-    if (direcao !== undefined && direcao !== 0) {
-      animandoVisor = true;
-      var saidaX = direcao > 0 ? -16 : 16;
-      var entradaX = direcao > 0 ? 16 : -16;
-
-      img.style.transition = 'opacity 0.12s ease-out, transform 0.12s ease-out';
-      img.style.opacity = '0.15';
-      img.style.transform = 'translate3d(' + saidaX + 'px, 0, 0) scale(0.985)';
-
-      var nextImg = new Image();
-      var feito = false;
-      function trocarAgora() {
-        if (feito) return;
-        feito = true;
-        img.src = url;
-        img.style.transition = 'none';
-        img.style.transform = 'translate3d(' + entradaX + 'px, 0, 0) scale(0.985)';
-        img.style.opacity = '0.15';
-
-        void img.offsetHeight; // Força recálculo do DOM
-
-        requestAnimationFrame(function () {
-          img.style.transition = 'opacity 0.2s cubic-bezier(0.2, 0.8, 0.25, 1), transform 0.2s cubic-bezier(0.2, 0.8, 0.25, 1)';
-          img.style.opacity = '1';
-          img.style.transform = 'translate3d(0, 0, 0) scale(1)';
-          posicionarCoracaoNoCantoDaFoto();
-          setTimeout(function () {
-            animandoVisor = false;
-            posicionarCoracaoNoCantoDaFoto();
-          }, 210);
-        });
-      }
-
-      nextImg.onload = trocarAgora;
-      nextImg.onerror = trocarAgora;
-      nextImg.src = url;
-      setTimeout(trocarAgora, 160); // Garantia de que nunca bloqueia
-    } else {
-      img.style.transition = 'none';
-      img.style.opacity = '1';
-      img.style.transform = 'translate3d(0, 0, 0) scale(1)';
-      img.src = url;
-      posicionarCoracaoNoCantoDaFoto();
-      requestAnimationFrame(posicionarCoracaoNoCantoDaFoto);
-    }
-
     var nomeFich = decodeURIComponent(url.split('/').pop());
     var contadorTxt = (aberto + 1) + ' / ' + G.total;
     var meta = (G && G.fotosMeta && G.fotosMeta[url]) || {};
@@ -571,17 +583,69 @@
     if (el('vAntes')) el('vAntes').disabled = desatAntes;
     if (el('vDepois')) el('vDepois').disabled = desatDepois;
 
-    // Pré-carrega fotos adjacentes para navegação instantânea
-    if (aberto + 1 < G.fotos.length) { var nxt = new Image(); nxt.src = G.fotos[aberto + 1]; }
-    if (aberto - 1 >= 0) { var prv = new Image(); prv.src = G.fotos[aberto - 1]; }
+    // Pré-carrega ±2 para a navegação contínua ser instantânea
+    for (var k = -2; k <= 2; k++) {
+      if (k === 0) continue;
+      var u = G.fotos[aberto + k];
+      if (u) { var im = new Image(); im.src = u; }
+    }
+  }
+
+  /* anima a faixa até ao centro e recompõe no fim */
+  function assentarFaixa() {
+    var f = faixaEl();
+    var tk = ++assentFaixaTok;
+    animandoVisor = true;
+    if (f) {
+      f.style.transition = 'transform .23s cubic-bezier(.2,.8,.25,1)';
+      f.style.transform = 'translate3d(' + (-(slideW || medirSlide())) + 'px, 0, 0)';
+    }
+    setTimeout(function () {
+      if (tk !== assentFaixaTok) return;
+      animandoVisor = false;
+      comporFaixa();
+    }, 250);
+  }
+
+  function irPara(n) {
+    if (aberto < 0 || animandoVisor || !G || !G.fotos || !G.fotos.length) return;
+    if (n < 0) n = 0;
+    if (n > G.fotos.length - 1) n = G.fotos.length - 1;
+    var f = faixaEl();
+    var W = medirSlide();
+    if (n === aberto) {
+      /* ponta: elástico — encosta e volta ao estado normal */
+      if (!f) return;
+      var dir = (aberto === 0) ? 1 : -1;
+      var tk0 = ++assentFaixaTok;
+      animandoVisor = true;
+      f.style.transition = 'transform .18s ease-out';
+      f.style.transform = 'translate3d(' + (-W + dir * Math.min(46, W * 0.12)) + 'px, 0, 0)';
+      setTimeout(function () {
+        if (tk0 !== assentFaixaTok) return;
+        saltoFaixa();
+        animandoVisor = false;
+      }, 200);
+      return;
+    }
+    var d = n > aberto ? 1 : -1;
+    aberto = n;
+    ligarSlides();
+    atualizarInfoVisor();
+    if (f) {
+      /* para continuidade: a foto antiga está a d janelas de distância */
+      f.style.transition = 'none';
+      f.style.transform = 'translate3d(' + (-W + d * W) + 'px, 0, 0)';
+      void f.offsetWidth;
+      requestAnimationFrame(function () { assentarFaixa(); });
+    } else {
+      comporFaixa();
+    }
   }
 
   function passo(d) {
-    if (animandoVisor) return;
-    var n = aberto + d;
-    if (n < 0 || n >= G.fotos.length) return;
-    aberto = n;
-    pintarVisor(d);
+    if (animandoVisor || aberto < 0 || !G || !G.fotos) return;
+    irPara(aberto + d);
   }
 
   el('grelha').addEventListener('click', function (ev) {
@@ -595,21 +659,26 @@
   if (el('vAntes')) el('vAntes').addEventListener('click', function () { passo(-1); });
   if (el('vDepois')) el('vDepois').addEventListener('click', function () { passo(1); });
 
-  /* Gestos touch: horizontal acompanha o dedo (fluido, só transform, sem
-     leituras de layout no movimento); para baixo a partir de ~110px fecha o
-     visor. Só vale com 1 dedo e fora da animação de troca. */
+  /* Gestos touch sobre a faixa: horizontal acompanha o dedo com foto a foto
+     (contínuo, só transform, sem leituras de layout no movimento); soltar com
+     velocidade ou deslocamento muda de foto; nas pontas há elástico e volta
+     ao estado normal. Para baixo a partir de ~110px fecha o visor. */
   var arrX0 = 0, arrY0 = 0, arrDX = 0, arrDY = 0, arrEixo = null, arrAtivo = false;
+  var arrFaixaX = 0, arrAmostras = [];
   var geracaoVisor = 0;
   var centroEl = el('visorCentro');
   if (centroEl) {
     centroEl.addEventListener('touchstart', function (e) {
-      if (aberto < 0 || animandoVisor) { arrAtivo = false; return; }
+      if (aberto < 0 || animandoVisor || !G || !G.fotos) { arrAtivo = false; return; }
       if (e.touches && e.touches.length === 1) {
+        medirSlide();
         arrX0 = e.touches[0].clientX;
         arrY0 = e.touches[0].clientY;
         arrDX = 0; arrDY = 0; arrEixo = null; arrAtivo = true;
-        var img0 = el('vImg');
-        if (img0) img0.style.transition = 'none';
+        arrFaixaX = -slideW;
+        arrAmostras = [{ t: Date.now(), x: 0 }];
+        var f0 = faixaEl();
+        if (f0) f0.style.transition = 'none';
       } else { arrAtivo = false; }
     }, { passive: true });
     centroEl.addEventListener('touchmove', function (e) {
@@ -621,47 +690,84 @@
         arrEixo = Math.abs(arrDX) >= Math.abs(arrDY) ? 'x' : 'y';
       }
       if (!arrEixo) return;
-      var img = el('vImg');
-      if (!img) return;
+      var f = faixaEl();
+      if (!f) return;
       if (arrEixo === 'x') {
-        img.style.transform = 'translate3d(' + Math.round(arrDX) + 'px, 0, 0)';
-        img.style.opacity = '1';
+        var dx = arrDX;
+        /* elástico nas pontas: sem vizinho, o movimento encurta */
+        if ((aberto === 0 && dx > 0) || (aberto === G.fotos.length - 1 && dx < 0)) dx = dx * 0.35;
+        arrFaixaX = -slideW + dx;
+        f.style.transform = 'translate3d(' + Math.round(arrFaixaX) + 'px, 0, 0)';
+        f.style.opacity = '1';
+        arrAmostras.push({ t: Date.now(), x: arrDX });
+        if (arrAmostras.length > 4) arrAmostras.shift();
       } else {
-        img.style.transform = 'translate3d(0, ' + Math.round(Math.max(arrDY, -60)) + 'px, 0)';
-        img.style.opacity = String(Math.max(0.3, 1 - Math.abs(arrDY) / 480));
+        f.style.transform = 'translate3d(0, ' + Math.round(Math.max(arrDY, -60)) + 'px, 0)';
+        f.style.opacity = String(Math.max(0.3, 1 - Math.abs(arrDY) / 480));
       }
     }, { passive: true });
-    centroEl.addEventListener('touchend', function (e) {
+    function encerrarArrasto() {
       if (!arrAtivo) return;
       arrAtivo = false;
-      var img = el('vImg');
+      var f = faixaEl();
       if (arrEixo === 'y' && arrDY > 110) {
         /* arrastar para baixo fecha */
         var gFechar = geracaoVisor;
-        if (img) {
-          img.style.transition = 'transform .22s ease-out, opacity .22s ease-out';
-          img.style.transform = 'translate3d(0, 42vh, 0)';
-          img.style.opacity = '0';
+        if (f) {
+          f.style.transition = 'transform .22s ease-out, opacity .22s ease-out';
+          f.style.transform = 'translate3d(0, 42vh, 0)';
+          f.style.opacity = '0';
         }
         setTimeout(function () { if (gFechar === geracaoVisor) fecharVisor(); }, 200);
-      } else if (arrEixo === 'x' && Math.abs(arrDX) > 48) {
-        if (arrDX > 0) passo(-1); // Deslizou para a direita -> foto anterior
-        else passo(1);            // Deslizou para a esquerda -> foto seguinte
-      } else if (img) {
-        img.style.transition = 'transform .18s ease-out, opacity .18s ease-out';
-        img.style.transform = 'translate3d(0, 0, 0)';
-        img.style.opacity = '1';
+      } else if (arrEixo === 'x') {
+        var W = slideW || medirSlide();
+        var limiar = Math.max(56, W * 0.16);
+        var v = 0;
+        if (arrAmostras.length >= 2) {
+          var a0 = arrAmostras[0], a1 = arrAmostras[arrAmostras.length - 1];
+          if (a1.t > a0.t) v = (a1.x - a0.x) / (a1.t - a0.t);
+        }
+        var alvo = aberto;
+        if ((arrDX < -limiar || v < -0.45) && aberto < G.fotos.length - 1) alvo = aberto + 1;
+        else if ((arrDX > limiar || v > 0.45) && aberto > 0) alvo = aberto - 1;
+        if (alvo !== aberto) {
+          var d = alvo > aberto ? 1 : -1;
+          aberto = alvo;
+          ligarSlides();
+          atualizarInfoVisor();
+          if (f) {
+            /* continuidade: a vista atual está a d janelas da nova */
+            f.style.transition = 'none';
+            f.style.transform = 'translate3d(' + Math.round(arrFaixaX + d * W) + 'px, 0, 0)';
+            void f.offsetWidth;
+            requestAnimationFrame(function () { assentarFaixa(); });
+          } else {
+            comporFaixa();
+          }
+        } else if (f) {
+          /* sem vizinho ou gesto curto: volta ao estado normal */
+          f.style.transition = 'transform .2s ease-out, opacity .2s ease-out';
+          f.style.transform = 'translate3d(' + (-W) + 'px, 0, 0)';
+          f.style.opacity = '1';
+          var tk = ++assentFaixaTok;
+          animandoVisor = true;
+          setTimeout(function () {
+            if (tk !== assentFaixaTok) return;
+            animandoVisor = false;
+            comporFaixa();
+          }, 220);
+        }
+      } else if (f) {
+        f.style.transition = 'transform .18s ease-out, opacity .18s ease-out';
+        f.style.transform = 'translate3d(' + (-(slideW || medirSlide())) + 'px, 0, 0)';
+        f.style.opacity = '1';
       }
       arrEixo = null;
-    }, { passive: true });
+    }
+    centroEl.addEventListener('touchend', function () { encerrarArrasto(); }, { passive: true });
     centroEl.addEventListener('touchcancel', function () {
       arrAtivo = false; arrEixo = null;
-      var img = el('vImg');
-      if (img && aberto >= 0) {
-        img.style.transition = 'transform .18s ease-out, opacity .18s ease-out';
-        img.style.transform = 'translate3d(0, 0, 0)';
-        img.style.opacity = '1';
-      }
+      saltoFaixa();
     }, { passive: true });
   }
 
@@ -695,6 +801,10 @@
   }
 
   window.addEventListener('resize', posicionarCoracaoNoCantoDaFoto);
+  window.addEventListener('resize', function () {
+    /* rotação/resize com o visor aberto: recentra a faixa na foto atual */
+    if (aberto >= 0 && !arrAtivo) saltoFaixa();
+  });
   window.addEventListener('orientationchange', function () {
     setTimeout(posicionarCoracaoNoCantoDaFoto, 80);
     setTimeout(posicionarCoracaoNoCantoDaFoto, 250);

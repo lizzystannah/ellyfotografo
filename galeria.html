@@ -89,29 +89,41 @@
         </button>
       </div>
 
-      <div class="seletor-grade" id="seletorGrade" title="Tamanho de visualização das fotos">
-        <button type="button" class="btn-grade on" id="btnGradeCompacta" data-modo="compacta" title="Visualização compacta (mais fotos ao mesmo tempo)">
+      <div class="seletor-grade" id="seletorGrade" title="Fotografias por linha">
+        <button type="button" class="btn-grade on" id="btnGrade3" data-modo="3" title="3 fotografias por linha">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-            <rect x="2" y="2" width="5" height="5" rx="1"></rect>
-            <rect x="9.5" y="2" width="5" height="5" rx="1"></rect>
-            <rect x="17" y="2" width="5" height="5" rx="1"></rect>
-            <rect x="2" y="9.5" width="5" height="5" rx="1"></rect>
-            <rect x="9.5" y="9.5" width="5" height="5" rx="1"></rect>
-            <rect x="17" y="9.5" width="5" height="5" rx="1"></rect>
-            <rect x="2" y="17" width="5" height="5" rx="1"></rect>
-            <rect x="9.5" y="17" width="5" height="5" rx="1"></rect>
-            <rect x="17" y="17" width="5" height="5" rx="1"></rect>
+            <rect x="2" y="2" width="6" height="6" rx="1"></rect>
+            <rect x="9" y="2" width="6" height="6" rx="1"></rect>
+            <rect x="16" y="2" width="6" height="6" rx="1"></rect>
+            <rect x="2" y="9" width="6" height="6" rx="1"></rect>
+            <rect x="9" y="9" width="6" height="6" rx="1"></rect>
+            <rect x="16" y="9" width="6" height="6" rx="1"></rect>
+            <rect x="2" y="16" width="6" height="6" rx="1"></rect>
+            <rect x="9" y="16" width="6" height="6" rx="1"></rect>
+            <rect x="16" y="16" width="6" height="6" rx="1"></rect>
           </svg>
-          <span class="txt-grade">Compacta</span>
+          <span class="txt-grade">3</span>
         </button>
-        <button type="button" class="btn-grade" id="btnGradeMedia" data-modo="confortavel" title="Visualização confortável">
+        <button type="button" class="btn-grade" id="btnGrade4" data-modo="4" title="4 fotografias por linha">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-            <rect x="2" y="2" width="9" height="9" rx="1.5"></rect>
-            <rect x="13" y="2" width="9" height="9" rx="1.5"></rect>
-            <rect x="2" y="13" width="9" height="9" rx="1.5"></rect>
-            <rect x="13" y="13" width="9" height="9" rx="1.5"></rect>
+            <rect x="2" y="2" width="4.5" height="4.5" rx="1"></rect>
+            <rect x="7.8" y="2" width="4.5" height="4.5" rx="1"></rect>
+            <rect x="13.5" y="2" width="4.5" height="4.5" rx="1"></rect>
+            <rect x="19.2" y="2" width="2.8" height="4.5" rx="1"></rect>
+            <rect x="2" y="7.8" width="4.5" height="4.5" rx="1"></rect>
+            <rect x="7.8" y="7.8" width="4.5" height="4.5" rx="1"></rect>
+            <rect x="13.5" y="7.8" width="4.5" height="4.5" rx="1"></rect>
+            <rect x="19.2" y="7.8" width="2.8" height="4.5" rx="1"></rect>
+            <rect x="2" y="13.5" width="4.5" height="4.5" rx="1"></rect>
+            <rect x="7.8" y="13.5" width="4.5" height="4.5" rx="1"></rect>
+            <rect x="13.5" y="13.5" width="4.5" height="4.5" rx="1"></rect>
+            <rect x="19.2" y="13.5" width="2.8" height="4.5" rx="1"></rect>
+            <rect x="2" y="19.2" width="4.5" height="2.8" rx="1"></rect>
+            <rect x="7.8" y="19.2" width="4.5" height="2.8" rx="1"></rect>
+            <rect x="13.5" y="19.2" width="4.5" height="2.8" rx="1"></rect>
+            <rect x="19.2" y="19.2" width="2.8" height="2.8" rx="1"></rect>
           </svg>
-          <span class="txt-grade">Média</span>
+          <span class="txt-grade">4</span>
         </button>
       </div>
     </div>
@@ -121,7 +133,7 @@
     Seleção concluída. Se quiseres mudar alguma coisa, fala com a fotógrafa.
   </p>
 
-  <main class="grelha grelha-compacta" id="grelha"></main>
+  <main class="grelha grelha-cols-3" id="grelha"></main>
   <p class="sem-fotos" id="semFotos" hidden>Esta galeria ainda não tem fotografias.</p>
 
   <footer class="rodape">
@@ -159,14 +171,18 @@
         <polyline points="15 18 9 12 15 6"></polyline>
       </svg>
     </button>
-                      <div class="vimg-container" id="vImgContainer">
-                        <img id="vImg" alt="Fotografia em tamanho completo" draggable="false" decoding="async">
+    <div class="vfaixa" id="vFaixa">
+      <div class="vslide"><img id="vImgAnt" alt="" draggable="false" decoding="async"></div>
+      <div class="vimg-container" id="vImgContainer">
+        <img id="vImg" alt="Fotografia em tamanho completo" draggable="false" decoding="async">
       <!-- Coração vermelho no canto superior direito quando selecionada -->
       <button type="button" class="vcoracao-topo-dir" id="vCoracaoMarcado" aria-label="Fotografia selecionada. Toque para remover seleção" title="Fotografia selecionada · Clique para desmarcar" hidden>
         <svg viewBox="0 0 24 24" width="24" height="24" fill="#ef4444" stroke="#ef4444" stroke-width="1.5" aria-hidden="true">
           <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
         </svg>
       </button>
+      </div>
+      <div class="vslide"><img id="vImgSeg" alt="" draggable="false" decoding="async"></div>
     </div>
     <button class="vbtn seta dir" id="vDepois" aria-label="Fotografia seguinte" title="Fotografia seguinte (→)">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
