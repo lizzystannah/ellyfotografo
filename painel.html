@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Painel · Elly Fotógrafo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/painel.css">
+</head>
+<body>
+
+<aside class="lateral" id="painelLateral">
+  <div class="marca-topo">
+    <div class="marca" id="marcaLateral">Elly <span>Painel</span></div>
+    <button type="button" class="btn-toggle-menu" id="btnToggleMenu" title="Encolher / Expandir menu lateral" aria-label="Encolher menu">
+      <span class="icone-toggle">◀</span>
+    </button>
+  </div>
+
+  <nav class="abas" id="abas">
+    <button class="aba on" data-aba="selecao" title="Seleção">
+      <span class="ponto" aria-hidden="true"></span><span class="aba-txt">Seleção</span>
+    </button>
+    <button class="aba" data-aba="contactos" title="Contactos">
+      <span class="ponto" aria-hidden="true"></span><span class="aba-txt">Contactos</span>
+    </button>
+    <button class="aba" data-aba="landing" title="Landing page">
+      <span class="ponto" aria-hidden="true"></span><span class="aba-txt">Landing page</span>
+    </button>
+  </nav>
+
+  <div class="rodape">
+    <span class="quem" id="quem">—</span>
+    <a href="/" target="_blank" rel="noopener" class="link-rodape" title="Ver site público"><span class="rodape-txt">Ver site</span></a>
+    <button id="sair" class="link" title="Terminar sessão"><span class="rodape-txt">Sair</span></button>
+  </div>
+</aside>
+
+<main class="conteudo">
+  <button type="button" class="btn-mostrar-menu-topo" id="btnMostrarMenuTopo" title="Mostrar menu lateral" hidden>
+    ☰ <span>Menu</span>
+  </button>
+
+  <!-- ============ SELEÇÃO ============ -->
+  <section class="painel-aba" id="aba-selecao">
+    <header class="topo">
+      <div>
+        <h1>Galerias de seleção</h1>
+        <p>Cria a galeria, carrega as fotos e envia o link ao cliente.</p>
+      </div>
+      <button class="primario" id="novaGaleria">+ Nova galeria</button>
+    </header>
+
+    <div class="grelha" id="listaGalerias"></div>
+    <p class="vazio" id="galeriasVazias" hidden>
+      Ainda não há galerias. Cria a primeira acima.
+    </p>
+  </section>
+
+  <!-- ============ CONTACTOS ============ -->
+  <section class="painel-aba" id="aba-contactos" hidden>
+    <header class="topo">
+      <div>
+        <h1>Contactos</h1>
+        <p>Guardados ao criar cada galeria privada.</p>
+      </div>
+      <input class="busca" id="buscaContacto" type="search" placeholder="Procurar nome ou número…">
+    </header>
+
+    <div class="tabela-rolagem" tabindex="0" role="region" aria-label="Tabela de contactos">
+      <table class="tabela">
+        <thead>
+          <tr>
+            <th>Cliente</th><th>WhatsApp</th><th>Fotos contratadas</th>
+            <th>Extra (Kz)</th><th>Galerias</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="corpoContactos"></tbody>
+      </table>
+    </div>
+    <p class="dica-rolagem">Desliza a tabela para o lado para veres as restantes colunas.</p>
+    <p class="vazio" id="contactosVazios" hidden>Sem contactos por agora.</p>
+  </section>
+
+  <!-- ============ LANDING PAGE (ESPELHO VISUAL WYSIWYG) ============ -->
+  <section class="painel-aba" id="aba-landing" hidden>
+    <header class="topo">
+      <div>
+        <h1>Landing page · Editor Visual</h1>
+        <p>Edição completa do site em modo Computador e Celular: textos, fotos, tamanhos e ordem das secções.</p>
+      </div>
+      <div class="acoes">
+        <div class="seletor-dispositivo" id="seletorDispositivo" role="group" aria-label="Modo de visualização">
+          <button type="button" class="btn-disp on" data-disp="pc" title="Visualização em Computador (Desktop)">🖥️ PC</button>
+          <button type="button" class="btn-disp" data-disp="tablet" title="Visualização em Tablet (768px)">📟 Tablet</button>
+          <button type="button" class="btn-disp" data-disp="mobile" title="Visualização em Celular (390px)">📱 Celular</button>
+        </div>
+        <button type="button" class="secundario" id="btnPainelCompleto" title="Maximizar / Ecrã Completo para ver a landing page em tamanho real">⛶ Painel Completo</button>
+        <button class="secundario" id="reporLanding" title="Restaurar textos e fotos originais">↺ Repor Original</button>
+        <button class="secundario" id="recarregarLanding" title="Recarregar pré-visualização">Recarregar</button>
+        <button class="secundario" id="abrirLanding" title="Abrir página num separador">Abrir noutro separador</button>
+        <button class="primario" id="guardarLanding">💾 Guardar alterações</button>
+      </div>
+    </header>
+
+    <div class="nota-espelho" id="notaLanding">
+      ✨ <strong>Edição Completa Ativa:</strong> Alterne entre 🖥️ PC e 📱 Celular. Clique em qualquer texto para editar ou reduzir tamanho. Clique nas fotos para trocar ou enquadrar. Use os botões das secções para mover, 👯 duplicar secções ou ajustar altura e margens.
+    </div>
+
+    <!-- ============ GESTÃO DE TEMPLATES (ATÉ 4) ============ -->
+    <div class="painel-templates" id="seccaoTemplatesLanding">
+      <div class="templates-cabecalho">
+        <div class="templates-info">
+          <h3>🎨 Templates Salvos da Landing Page <span class="badge-contador" id="contadorTemplates">0 / 4</span></h3>
+          <p>Pode guardar até 4 versões completas do site. Clique em <strong>“Usar no Site”</strong> para efetivar qualquer uma na página principal instantaneamente, ou use para recuperar versões anteriores.</p>
+        </div>
+        <div class="templates-botoes-topo">
+          <button type="button" class="btn-novo-template" id="btnSalvarNovoTemplate">
+            ➕ Guardar Alterações como Template
+          </button>
+        </div>
+      </div>
+      <div class="templates-grid" id="listaTemplatesLanding">
+        <p class="vazio">A carregar templates…</p>
+      </div>
+    </div>
+
+    <div class="moldura-container" id="molduraContainer">
+      <div class="moldura ed-espelho-completo modo-pc" id="molduraWrapper">
+        <div class="moldura-barra-topo" id="molduraBarraTopo" hidden>
+          <span class="notch"></span>
+          <span class="disp-rotulo" id="dispRotulo">📱 Celular (390px)</span>
+        </div>
+        <iframe id="frameLanding" src="" title="Espelho da landing page"></iframe>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============ ASSISTENTE DE GALERIA ============ -->
+<div class="fundo" id="fundo" hidden></div>
+<div class="assistente" id="assistente" hidden role="dialog" aria-modal="true">
+  <header class="ast-topo">
+    <strong class="ast-titulo" id="astTitulo">Nova galeria</strong>
+    <ol class="passos" id="astPassos">
+      <li class="on" data-p="1">Dados</li>
+      <li data-p="2">Fotos</li>
+      <li data-p="3">Privacidade</li>
+      <li data-p="4">Resumo</li>
+    </ol>
+    <button class="fechar" id="astFechar" aria-label="Fechar">✕</button>
+  </header>
+
+  <!-- passo 1 -->
+  <section class="ast-corpo" data-passo="1">
+    <h2>Dados da galeria</h2>
+    <label for="gNome">Nome da galeria</label>
+    <input id="gNome" type="text" placeholder="Aniversário da Maria · 12/07">
+
+    <label for="gDias">Duração do link (dias)</label>
+    <input id="gDias" type="number" min="1" value="30">
+
+    <label for="gCapa">Capa da galeria</label>
+    <input id="gCapa" type="file" accept="image/*">
+    <div class="capa-prev" id="capaPrev" hidden><img alt="Pré-visualização da capa"></div>
+  </section>
+
+  <!-- passo 2 -->
+  <section class="ast-corpo" data-passo="2" hidden>
+    <h2>Fotografias</h2>
+    <label class="solta" for="gFotos">
+      Clique ou arraste as fotografias para aqui
+      <input id="gFotos" type="file" accept="image/*" multiple>
+    </label>
+    <p class="contagem" id="contagemFotos">0 fotografias</p>
+
+    <!-- Controles inteligentes de metadata EXIF e ordenação das fotos -->
+    <div class="painel-ordem-fotos" id="painelOrdemFotos" hidden>
+      <div class="linha-info-meta">
+        <span class="badge-meta" id="badgeMetaCam">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+          <span id="txtMetaCam">Metadados EXIF</span>
+        </span>
+        <span class="dica-meta" id="dicaMeta">Organização automática por horário de captura (sincronização de câmeras)</span>
+      </div>
+
+      <div class="barra-acoes-ordem">
+        <span class="lbl-ordem">Visualização pelo cliente:</span>
+        <div class="grupo-botoes-ordem">
+          <button type="button" class="btn-ordem on" id="btnOrdemCaptura" data-criterio="captura" title="Organizar pelo momento exato em que a fotografia foi capturada (EXIF DateTimeOriginal)">
+            ⏱️ Horário de Captura
+          </button>
+          <button type="button" class="btn-ordem" id="btnOrdemNome" data-criterio="nome" title="Organizar pelo nome do ficheiro (A-Z)">
+            🔤 Nome do Arquivo
+          </button>
+          <button type="button" class="btn-ordem btn-inverter" id="btnInverterOrdem" title="Inverter ordem (mais antigas ↔ mais recentes)">
+            🔄 Inverter
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="miniaturas" id="miniaturas"></div>
+  </section>
+
+  <!-- passo 3 -->
+  <section class="ast-corpo" data-passo="3" hidden>
+    <h2>Quem acede?</h2>
+    <div class="opcoes">
+      <label class="opcao">
+        <input type="radio" name="acesso" value="publica" checked>
+        <b>Galeria pública</b>
+        <span>Qualquer pessoa com o link entra, sem senha.</span>
+      </label>
+      <label class="opcao">
+        <input type="radio" name="acesso" value="privada">
+        <b>Galeria privada</b>
+        <span>Cliente registado: nome, WhatsApp e fotos contratadas.</span>
+      </label>
+    </div>
+
+    <div id="formCliente" hidden>
+      <label for="cNome">Nome do cliente</label>
+      <input id="cNome" type="text" placeholder="Maria Fernandes">
+
+      <label for="cWhats">WhatsApp do cliente</label>
+      <input id="cWhats" type="tel" placeholder="912 345 678">
+
+      <label for="cSenha">Palavra-passe de acesso</label>
+      <input id="cSenha" type="text" value="ellyfotografo" placeholder="ellyfotografo">
+      <small style="color:var(--suave);font-size:12px;display:block;margin-top:-6px;margin-bottom:12px;">Pré-preenchido com "ellyfotografo" para o cliente memorizar o teu nome. Podes alterar se preferires.</small>
+
+      <div class="duas">
+        <div>
+          <label for="cFotos">Nº de fotografias contratadas</label>
+          <input id="cFotos" type="number" min="1" placeholder="80">
+        </div>
+        <div>
+          <label for="cExtra">Preço por foto extra (Kz)</label>
+          <input id="cExtra" type="number" min="0" step="100" placeholder="1500">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- passo 4 -->
+  <section class="ast-corpo" data-passo="4" hidden>
+    <h2>Resumo</h2>
+    <dl class="resumo">
+      <dt>Cliente</dt><dd id="rCliente">—</dd>
+      <dt>Número</dt><dd id="rNumero">—</dd>
+      <dt>Palavra-passe</dt><dd id="rSenha">ellyfotografo</dd>
+      <dt>Link de acesso</dt><dd id="rLink">—</dd>
+      <dt>Expira</dt><dd id="rExpira">—</dd>
+    </dl>
+    <a class="primario whatsapp" id="rEnviar" href="#" target="_blank" rel="noopener">
+      Enviar no WhatsApp
+    </a>
+    <p class="dica">O link abre o WhatsApp com a mensagem escrita — só enviares.</p>
+  </section>
+
+  <footer class="ast-rodape">
+    <button class="secundario" id="astVoltar" hidden>Voltar</button>
+    <span></span>
+    <button class="primario" id="astSeguinte">Continuar</button>
+  </footer>
+</div>
+
+<!-- ============ DETALHE DA GALERIA ============ -->
+<div class="fundo" id="fundoDet" hidden></div>
+<section class="detalhe" id="detalhe" hidden role="dialog" aria-modal="true" aria-label="Galeria">
+  <header class="det-topo">
+    <div>
+      <p class="det-eyebrow">Galeria de seleção</p>
+      <h2 id="dNome">—</h2>
+      <p class="det-estado" id="dEstado">—</p>
+    </div>
+    <button class="fechar" id="dFechar" aria-label="Fechar">✕</button>
+  </header>
+
+  <div class="det-corpo">
+    <dl class="det-info" id="dInfo"></dl>
+
+    <div class="det-sel" id="dSel" hidden>
+      <h3 id="dSelTitulo">Seleção do cliente</h3>
+      <div class="det-resumo" id="dResumo"></div>
+      <div class="miniaturas" id="dMini"></div>
+      <button class="secundario" id="dNomes">Descarregar seleção (.selpics)</button>
+    </div>
+
+    <div class="det-cabecalho-fotos">
+      <h3>Fotografias da galeria · <span id="dTotal">0</span></h3>
+      <div class="det-acoes-fotos" id="dOpcoesOrdem">
+        <button type="button" class="btn-micro" id="dBtnOrdemCaptura" title="Reorganizar galeria pelo horário de captura EXIF (sincroniza câmeras)">⏱️ Ordenar por Horário</button>
+        <button type="button" class="btn-micro" id="dBtnOrdemNome" title="Reorganizar galeria pelo nome do ficheiro (A-Z)">🔤 Por Nome</button>
+        <button type="button" class="btn-micro" id="dBtnInverter" title="Inverter ordem atual">🔄 Inverter</button>
+      </div>
+    </div>
+    <div class="miniaturas" id="dFotos"></div>
+    <p class="vazio" id="dSemFotos" hidden>Esta galeria ainda não tem fotografias.</p>
+  </div>
+
+  <footer class="det-acoes">
+    <button class="primario destaque" id="dReativar" style="background:var(--gold);color:#111;">⚡ Reativar Galeria</button>
+    <button class="secundario" id="dEditar">Editar</button>
+    <a class="secundario" id="dAbrir" target="_blank" rel="noopener">Ver como cliente</a>
+    <a class="primario" id="dWhats" target="_blank" rel="noopener" hidden>Enviar link no WhatsApp</a>
+    <button class="secundario perigo" id="dApagar">Apagar</button>
+  </footer>
+</section>
+
+<script src="/exifr.js"></script>
+<script src="/painel.js"></script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+/* ===== LOGIN DA ÁREA RESERVADA ===== */
+:root {
+  --gold: #c8a45d;
+  --gold-light: #e2c88f;
+  --ink: #111;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 30px 18px;
+  font-family: "DM Sans", sans-serif;
+  background:
+    radial-gradient(900px 500px at 80% -10%, rgba(200,164,93,.18), transparent 60%),
+    var(--ink);
+  color: #eee;
+}
+
+.caixa {
+  width: 100%;
+  max-width: 400px;
+  background: #17171a;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 18px;
+  padding: 38px 32px 30px;
+  text-align: center;
+  box-shadow: 0 30px 60px rgba(0,0,0,.5);
+}
+
+.cadeado {
+  width: 62px; height: 62px;
+  margin: 0 auto 20px;
+  display: grid; place-items: center;
+  border: 1px solid rgba(200,164,93,.55);
+  border-radius: 50%;
+  color: var(--gold);
+}
+
+h1 {
+  font-family: "Playfair Display", serif;
+  font-size: 30px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.sub {
+  margin: 10px 0 26px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: #a5a5ad;
+}
+
+form { text-align: left; }
+
+label {
+  display: block;
+  font-size: 12.5px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--gold-light);
+  margin: 0 0 7px;
+}
+label span { color: #7d7d86; text-transform: none; letter-spacing: 0; }
+
+input {
+  width: 100%;
+  padding: 13px 15px;
+  margin-bottom: 18px;
+  background: #0e0e10;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 10px;
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  transition: border-color .2s;
+}
+input:focus { outline: none; border-color: var(--gold); }
+input::placeholder { color: #6b6b74; }
+
+.erro {
+  color: #ff8f8f;
+  font-size: 13.5px;
+  margin: -8px 0 14px;
+}
+
+button.primario {
+  width: 100%;
+  padding: 14px;
+  border: 0;
+  border-radius: 40px;
+  background: var(--gold);
+  color: #111;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: .25s;
+}
+button.primario:hover { background: var(--gold-light); }
+
+.voltar {
+  display: inline-block;
+  margin-top: 20px;
+  font-size: 13.5px;
+  color: #9a9aa3;
+  text-decoration: none;
+}
+.voltar:hover { color: var(--gold); }
+
+@media (max-width: 600px) {
+  /* alvo de toque confortável no telemóvel */
+  .voltar { padding: 12px 6px; }
+}

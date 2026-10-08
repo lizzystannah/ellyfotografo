@@ -1,0 +1,6 @@
+{
+  "name": "Elly Fotógrafo",
+  "description": "Landing page e backoffice da Elly Fotógrafo em Angola.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

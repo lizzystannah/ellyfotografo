@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Galeria · Elly Fotógrafo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/galeria.css">
+</head>
+<body>
+
+<!-- ============ ACESSO (galerias privadas) ============ -->
+<section class="acesso" id="acesso" hidden>
+  <div class="acesso-caixa">
+    <div class="acesso-icone" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="24" height="24" focusable="false">
+        <path d="M7.5 10.5V7.6a4.5 4.5 0 0 1 9 0v2.9" fill="none"
+              stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+        <rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none"
+              stroke="currentColor" stroke-width="1.9"/>
+        <circle cx="12" cy="15.5" r="1.7" fill="currentColor"/>
+      </svg>
+    </div>
+    <p class="eyebrow">Galeria privada</p>
+    <h1 id="acessoTitulo">…</h1>
+    <p class="acesso-sub">Insere o teu contacto de WhatsApp e a palavra-passe para aceder às fotografias.</p>
+
+    <form id="acessoForm" novalidate>
+      <label for="acessoNum">WhatsApp</label>
+      <input id="acessoNum" type="tel" inputmode="numeric" autocomplete="tel"
+             placeholder="912 345 678">
+
+      <label for="acessoSenha" style="margin-top: 14px;">Palavra-passe</label>
+      <input id="acessoSenha" type="text" autocomplete="current-password"
+             placeholder="Palavra-passe (ex: ellyfotografo)">
+
+      <p class="erro" id="acessoErro" hidden></p>
+      <button class="btn dourado" id="acessoSubmitBtn" type="submit" style="margin-top: 18px;">Entrar na galeria</button>
+    </form>
+
+    <div id="acessoExpirada" hidden style="margin-top: 18px; text-align: center;">
+      <p style="color: #ffb888; font-size: 14.5px; margin-bottom: 16px; line-height: 1.5;" id="expiradaMsg">Esta galeria expirou. O prazo de seleção terminou. Contacta o fotógrafo para reativar o link.</p>
+      <a class="btn dourado" id="btnReativarWa" href="#" target="_blank" rel="noopener" style="display:inline-block; width:100%;">Pedir Reativação no WhatsApp</a>
+    </div>
+
+    <a class="voltar" href="/">&larr; Ver o site</a>
+  </div>
+</section>
+
+<!-- ============ GALERIA ============ -->
+<div class="app" id="app" hidden>
+
+  <header class="capa" id="capa">
+    <div class="capa-foto" id="capaFoto"></div>
+    <div class="capa-veu"></div>
+    <div class="capa-txt">
+      <p class="eyebrow">Galeria de seleção</p>
+      <h1 id="titulo">…</h1>
+      <p class="capa-sub" id="capaSub"></p>
+    </div>
+    <a class="rolar" href="#grelha" aria-label="Ver fotografias">
+      <svg viewBox="0 0 24 24" width="26" height="26" focusable="false">
+        <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+  </header>
+
+  <div class="barra" id="barra">
+    <div class="barra-info">
+      <p class="conta">
+        <b id="nEscolhidas">0</b><span> escolhidas de </span><b id="nTotal">0</b>
+      </p>
+      <p class="aviso" id="avisoExtras" hidden></p>
+    </div>
+    <div class="barra-ferramentas">
+      <div class="seletor-ordem-cliente" id="seletorOrdemCliente" title="Critério de ordenação das fotografias">
+        <button type="button" class="btn-ordem-cli on" id="btnCliOrdemCaptura" title="Organizar por horário de captura cronológico">
+          ⏱️ Horário
+        </button>
+        <button type="button" class="btn-ordem-cli" id="btnCliOrdemNome" title="Organizar por nome do ficheiro (A-Z)">
+          🔤 Nome
+        </button>
+      </div>
+
+      <div class="seletor-grade" id="seletorGrade" title="Tamanho de visualização das fotos">
+        <button type="button" class="btn-grade on" id="btnGradeCompacta" data-modo="compacta" title="Visualização compacta (mais fotos ao mesmo tempo)">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <rect x="2" y="2" width="5" height="5" rx="1"></rect>
+            <rect x="9.5" y="2" width="5" height="5" rx="1"></rect>
+            <rect x="17" y="2" width="5" height="5" rx="1"></rect>
+            <rect x="2" y="9.5" width="5" height="5" rx="1"></rect>
+            <rect x="9.5" y="9.5" width="5" height="5" rx="1"></rect>
+            <rect x="17" y="9.5" width="5" height="5" rx="1"></rect>
+            <rect x="2" y="17" width="5" height="5" rx="1"></rect>
+            <rect x="9.5" y="17" width="5" height="5" rx="1"></rect>
+            <rect x="17" y="17" width="5" height="5" rx="1"></rect>
+          </svg>
+          <span class="txt-grade">Compacta</span>
+        </button>
+        <button type="button" class="btn-grade" id="btnGradeMedia" data-modo="confortavel" title="Visualização confortável">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <rect x="2" y="2" width="9" height="9" rx="1.5"></rect>
+            <rect x="13" y="2" width="9" height="9" rx="1.5"></rect>
+            <rect x="2" y="13" width="9" height="9" rx="1.5"></rect>
+            <rect x="13" y="13" width="9" height="9" rx="1.5"></rect>
+          </svg>
+          <span class="txt-grade">Média</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <p class="aviso-finalizada" id="avisoFinalizada" hidden>
+    Seleção concluída. Se quiseres mudar alguma coisa, fala com a fotógrafa.
+  </p>
+
+  <main class="grelha grelha-compacta" id="grelha"></main>
+  <p class="sem-fotos" id="semFotos" hidden>Esta galeria ainda não tem fotografias.</p>
+
+  <footer class="rodape">
+    <strong>Elly Fotógrafo</strong>
+    <span>Seleção de fotografias</span>
+  </footer>
+
+  <div class="flutuante" id="flutuante">
+    <button class="btn dourado" id="btnFinalizar">Finalizar seleção</button>
+  </div>
+</div>
+
+<!-- ============ VISOR ============ -->
+<div class="visor" id="visor" hidden>
+  <div class="visor-topo">
+    <div class="visor-topo-esq">
+      <button class="vbtn-fechar" id="vFecharTopo" aria-label="Fechar visualizador" title="Fechar (Esc)">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+        <span class="txt-fechar">Fechar</span>
+      </button>
+    </div>
+
+    <div class="visor-topo-dir">
+      <div class="visor-contador" id="vContaTopo">1 / 1</div>
+      <span class="quota" id="vLim" hidden></span>
+    </div>
+  </div>
+
+  <div class="visor-centro" id="visorCentro">
+    <button class="vbtn seta esq" id="vAntes" aria-label="Fotografia anterior" title="Fotografia anterior (←)">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+    </button>
+    <div class="vimg-container" id="vImgContainer">
+      <img id="vImg" alt="Fotografia em tamanho completo" draggable="false">
+      <!-- Coração vermelho no canto superior direito quando selecionada -->
+      <button type="button" class="vcoracao-topo-dir" id="vCoracaoMarcado" aria-label="Fotografia selecionada. Toque para remover seleção" title="Fotografia selecionada · Clique para desmarcar" hidden>
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="#ef4444" stroke="#ef4444" stroke-width="1.5" aria-hidden="true">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+        </svg>
+      </button>
+    </div>
+    <button class="vbtn seta dir" id="vDepois" aria-label="Fotografia seguinte" title="Fotografia seguinte (→)">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="9 18 15 12 9 6"></polyline>
+      </svg>
+    </button>
+  </div>
+
+  <div class="visor-pe" id="visorPe">
+    <div class="visor-info-pe">
+      <div class="vlinha-nome" id="vNome"></div>
+    </div>
+    <!-- Botão de selecionar embaixo que se expande pela barra com coração no centro -->
+    <button type="button" class="vbtn-selecionar-barra" id="vBtnSelecionarBaixo" title="Selecionar fotografia">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+      </svg>
+      <span>Selecionar</span>
+    </button>
+    <p class="vextras" id="vExtras" hidden></p>
+  </div>
+</div>
+
+<!-- ============ RESUMO ============ -->
+<div class="fundo" id="fundo" hidden></div>
+<section class="resumo" id="resumo" hidden role="dialog" aria-modal="true" aria-label="Resumo da seleção">
+  <header>
+    <h2>Resumo da seleção</h2>
+    <button class="vbtn fechar" id="rFechar" aria-label="Fechar">✕</button>
+  </header>
+
+  <div class="resumo-corpo">
+    <dl>
+      <dt>Total na galeria</dt><dd id="rTotal">0</dd>
+      <dt>Escolhidas</dt><dd id="rEscolhidas">0</dd>
+      <dt>Incluídas no contrato</dt><dd id="rLimite">—</dd>
+      <dt>Fotografias extra</dt><dd id="rExtras">0</dd>
+      <dt>Valor das extras</dt><dd id="rValor">0 Kz</dd>
+      <dt>Estado</dt><dd id="rEstado">Em curso</dd>
+    </dl>
+    <div class="mini" id="rMini"></div>
+  </div>
+
+  <footer class="resumo-acoes">
+    <button class="btn branco" id="rVoltar">Continuar a escolher</button>
+    <button class="btn branco" id="rPdf">Descarregar PDF</button>
+    <button class="btn dourado" id="rConcluir">Concluir seleção</button>
+  </footer>
+  <p class="resumo-nota" id="rNota">
+    Ao concluir, a seleção é enviada à fotógrafa com um PDF das fotografias escolhidas.
+  </p>
+</section>
+
+<script src="/pdf.js"></script>
+<script src="/galeria.js"></script>
+</body>
+</html>

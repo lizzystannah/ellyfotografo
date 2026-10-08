@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+dados/fotos/*
+dados/capas/*
+dados/*.tmp
+dados/*.bak
+.DS_Store
+*.swp

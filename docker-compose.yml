@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  elly-fotografo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: elly_fotografo_app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    volumes:
+      # Guarda todas as galerias, definições da landing page, clientes e sessões na VPS
+      - ./dados:/app/dados
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # Se pretender correr MySQL localmente no Docker em vez de JSON ou serviço na cloud:
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: elly_fotografo_mysql
+  #   restart: unless-stopped
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: root_password_super_secreta
+  #     MYSQL_DATABASE: elly_fotografo
+  #     MYSQL_USER: elly
+  #     MYSQL_PASSWORD: elly_password_segura
+  #   volumes:
+  #     - ./dados/mysql:/var/lib/mysql
+  #   ports:
+  #     - "3306:3306"

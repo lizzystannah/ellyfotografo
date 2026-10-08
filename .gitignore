@@ -1,0 +1,12 @@
+node_modules/
+npm-debug.log
+.env
+.env.local
+dados/*.tmp
+dados/*.bak
+dados/fotos/*
+dados/capas/*
+!.gitkeep
+.DS_Store
+*.swp
+*.log

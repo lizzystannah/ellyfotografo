@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Entrar · Elly Fotógrafo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/login.css">
+</head>
+<body>
+
+<main class="caixa">
+  <div class="cadeado" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="26" height="26" focusable="false">
+      <path d="M7.5 10.5V7.6a4.5 4.5 0 0 1 9 0v2.9" fill="none"
+            stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+      <rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none"
+            stroke="currentColor" stroke-width="1.9"/>
+      <circle cx="12" cy="15.5" r="1.7" fill="currentColor"/>
+    </svg>
+  </div>
+
+  <h1>Área reservada</h1>
+  <p class="sub">Galerias de seleção, contactos e edição da landing page.</p>
+
+  <form id="formLogin" novalidate>
+    <label for="utilizador">Utilizador</label>
+    <input id="utilizador" name="utilizador" type="text" autocomplete="username"
+           placeholder="O teu nome" autofocus>
+
+    <label for="palavraPasse">Palavra-passe <span>(opcional)</span></label>
+    <input id="palavraPasse" name="palavraPasse" type="password"
+           autocomplete="current-password" placeholder="••••••">
+
+    <p class="erro" id="erro" hidden></p>
+
+    <button type="submit" class="primario">Entrar</button>
+  </form>
+
+  <a class="voltar" href="/">&larr; Voltar à página</a>
+</main>
+
+<script src="/login.js"></script>
+</body>
+</html>

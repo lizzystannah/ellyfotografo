@@ -1,0 +1,28 @@
+[
+  {
+    "id": "gh-6f1c6e",
+    "slug": "gh-6f1c6e",
+    "nome": "gh",
+    "dias": 30,
+    "expiraEm": "2026-11-07T14:03:30.842Z",
+    "capa": "/capas/gh-6f1c6e.jpg",
+    "fotos": [
+      "/fotos/gh-6f1c6e/486548540_977027437923816_3807544170407041756_n_muzlyby4_0.jpg",
+      "/fotos/gh-6f1c6e/486485622_975974368029123_3966154590221945530_n_muzlyc17_1.jpg",
+      "/fotos/gh-6f1c6e/486193733_975974481362445_2261142460169717824_n_muzlyc4t_2.jpg",
+      "/fotos/gh-6f1c6e/509429918_1044885311138028_2372649041219739032_n_muzlyc8s_3.jpg",
+      "/fotos/gh-6f1c6e/520229569_1060775316215694_3738498795759569741_n_muzlycc8_4.jpg"
+    ],
+    "privada": true,
+    "senha": "ellyfotografo",
+    "clienteId": "cli-e6ae9c0f",
+    "selecao": {
+      "fotos": [
+        "/fotos/gh-6f1c6e/486485622_975974368029123_3966154590221945530_n_muzlyc17_1.jpg"
+      ],
+      "finalizada": false,
+      "atualizadoEm": "2026-10-08T14:58:52.900Z"
+    },
+    "criadaEm": "2026-10-08T14:03:30.842Z"
+  }
+]

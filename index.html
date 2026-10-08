@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="pt"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Elly Fotógrafo — O teu momento passa. A fotografia fica.</title>
+  <meta name="description" content="Fotografia de eventos em Angola. Conta-nos a tua data e dizemos-te se estamos livres. Aniversários, festas infantis, batizados.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;1,400&family=Montserrat:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <script>
+    /* O editor só existe no backoffice (painel → aba "Landing page"),
+       que abre esta página com ?editor=1. */
+    if (/[?&]editor=1/.test(location.search)) {
+      var edCss = document.createElement('link');
+      edCss.rel = 'stylesheet';
+      edCss.href = '/editor.css';
+      document.head.appendChild(edCss);
+    }
+  </script>
+</head>
+
+<body class="">
+
+  <!-- HEADER -->
+  <header>
+    <a href="#topo" class="logo">
+      Elly <span>Fotógrafo</span>
+    </a>
+
+    <nav>
+      <a href="#eventos">O que fotografo</a>
+      <a href="#portfolio">Portfólio</a>
+      <a href="#como">Como funciona</a>
+      <a href="#experiencia">Experiência</a>
+    </nav>
+
+    <div class="header-dir">
+      <a href="#reservar" class="header-btn">Conta-me a tua data</a>
+      <a href="/login" class="btn-cadeado" id="btnCadeado" title="Área reservada"
+         aria-label="Área reservada">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+          <path d="M7.5 10.5V7.6a4.5 4.5 0 0 1 9 0v2.9" fill="none"
+                stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          <rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none"
+                stroke="currentColor" stroke-width="1.9"/>
+          <circle cx="12" cy="15.5" r="1.7" fill="currentColor"/>
+        </svg>
+      </a>
+    </div>
+  </header>
+
+
+  <!-- HERO -->
+  <section class="hero" id="topo" style="zoom: 0.85; --esc: 0.85;">
+    <div class="hero-content">
+      <h1>
+        O teu momento passa.<br>
+        <span>A fotografia fica.</span>
+      </h1>
+
+      <p>
+        Oi. Não é o dia todo que eu guardo — são aqueles 3 segundos que depois
+        não se voltam a ver. Faz 4 anos que é isso que faço.
+      </p>
+
+      <div class="hero-buttons">
+        <a href="#reservar" class="btn btn-primary">Conta-me a tua data</a>
+        <a href="#portfolio" class="btn btn-outline">Vê primeiro</a>
+      </div>
+    </div>
+
+    <div class="hero-bottom">
+      <span>A QUALIDADE FALA POR SI</span>
+      <span>MAIS DE 5 ANOS A FOTOGRAFAR</span>
+      <span>DEZENAS DE SORRISOS ETERNIZADO</span>
+    </div>
+  </section>
+
+
+  <!-- INTRO -->
+  <section class="intro" id="sobre" style="position: relative; zoom: 1.8;">
+    <div class="section-label">Antes de tudo</div>
+
+    <div class="intro-card">
+      <div class="intro-foto">
+        <img src="assets/img/foto-07.jpg" alt="Retrato espontâneo com flores" loading="lazy">
+      </div>
+      <div class="intro-texto">
+        <h2>Não precisa de saber posar.</h2>
+        <p>Vamos combinar. Tu celebras, ris, danças, divertes-te e eu registo tudo.
+          É a minha parte. E quando as fotos chegarem, com certeza vais reviver,
+          emocionar-te e amar. Farei com prazer aquilo que mais gosto de fazer: fotografar.</p>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- EVENTOS -->
+  <section class="events" id="eventos" style="position: relative;">
+    <div class="events-header">
+      <div>
+        <div class="section-label">Então?</div>
+        <h2>O que estás<br>a planear?</h2>
+      </div>
+      <p>
+        Clica no que for o teu caso. Já te pergunto o resto a seguir —
+        leva dois minutos.
+      </p>
+    </div>
+
+    <div class="event-grid">
+      <a href="#reservar" class="event-card" data-tipo="Aniversário">
+        <img src="assets/img/foto-01.jpg" alt="Aniversário infantil" loading="lazy" style="--fz: 1; --fx: 49%; --fy: 88%;">
+        <div class="event-info">
+          <h3>Aniversário</h3>
+          <p>A festa passa. Isto fica.</p>
+        </div>
+      </a>
+
+      <a href="#reservar" class="event-card" data-tipo="Noivado">
+        <img src="assets/img/foto-02.jpg" alt="Festa temática" loading="lazy" style="--fz: 1; --fx: 50%; --fy: 25%;">
+        <div class="event-info">
+          <h3>Noivado</h3>
+          <p>O primeiro registo de um sonho maior</p>
+        </div>
+      </a>
+
+      <a href="#reservar" class="event-card" data-tipo="Casamento">
+        <img src="assets/img/foto-03.jpg" alt="Batizado" loading="lazy" style="--fz: 1; --fx: 50%; --fy: 100%;">
+        <div class="event-info">
+          <h3>Casamento</h3>
+          <p>Uma data para reviver para sempre e mais 6 meses</p>
+        </div>
+      </a>
+
+      <a href="#reservar" class="event-card" data-tipo="Outro">
+        <img src="assets/img/foto-04.jpg" alt="Outros momentos" loading="lazy" style="--fz: 1; --fx: 50%; --fy: 32%;">
+        <div class="event-info">
+          <h3>Outro</h3>
+          <p>Diz-me tu. Já fiz de tudo.</p>
+        </div>
+      </a>
+    </div>
+  </section>
+
+
+  <!-- PORTFÓLIO -->
+  <section class="portfolio" id="portfolio" style="position: relative;">
+    <div class="portfolio-top">
+      <div>
+        <div class="section-label">Sem discurso</div>
+        <h2>
+          Vê. Depois<br>
+          diz o que achas.
+        </h2>
+      </div>
+      <p>
+        Se eu começar a explicar, estou a estragar. Estas são imagens
+        de festas reais. O resto conversamos.
+      </p>
+    </div>
+
+    <div class="gallery">
+      <div class="gallery-item large">
+        <img src="assets/img/w1.jpg" alt="Aniversário com tiara e balões" loading="lazy" style="--fz: 1; --fx: 50%; --fy: 98%;">
+      </div>
+      <div class="gallery-item">
+        <img src="assets/img/w2.jpg" alt="Festa ao ar livre" loading="lazy" style="--fz: 1; --fx: 50%; --fy: 100%;">
+      </div>
+      <div class="gallery-item">
+        <img src="assets/img/foto-05.jpg" alt="Criança fantasiada" loading="lazy" style="--fz: 1; --fx: 50%; --fy: 0%;">
+      </div>
+      <div class="gallery-item">
+        <img src="assets/img/foto-06.jpg" alt="Criança com pelúcia temática" loading="lazy" style="--fz: 1; --fx: 50%; --fy: 100%;">
+      </div>
+      <div class="gallery-item">
+        <img src="assets/img/foto-07.jpg" alt="Criança a brincar" loading="lazy" style="--fz: 1; --fx: 50%; --fy: 39%;">
+      </div>
+    </div>
+  </section>
+
+
+  <!-- COMO FUNCIONA -->
+  <section class="como" id="como" style="position: relative;">
+    <div class="section-label">Para não haver surpresas</div>
+    <h2>Explico em 4 passos.</h2>
+
+    <ol class="passos">
+      <li>
+        <span class="num">01</span>
+        <h3>Perguntas rápidas</h3>
+        <p>O que é, quando é, o que precisas. Leva dois minutos e não te pedem nada de comprometedor.</p>
+      </li>
+      <li>
+        <span class="num">02</span>
+        <h3>Digo-te a verdade</h3>
+        <p>Se tenho a tua data livre, digo. Se não tenho, também digo — e não te faço perder tempo.</p>
+      </li>
+      <li>
+        <span class="num">03</span>
+        <h3>Cubro a festa</h3>
+        <p>Sempre com o olhar atento</p>
+      </li>
+      <li>
+        <span class="num">04</span>
+        <h3>Tu escolhes</h3>
+        <p>Num site privado, ao teu ritmo. Em 10 dias tens as fotos digitais na mão.</p>
+      </li>
+    </ol>
+  </section>
+
+
+  <!-- FUNIL -->
+  <section class="funil" id="reservar" style="position: relative;">
+    <div class="funil-card">
+
+      <div class="funil-topo">
+        <div class="section-label">Vamos a isso</div>
+        <p class="passo-rotulo" aria-live="polite">Pergunta <span id="passoAtual">1</span> de 3</p>
+        <div class="barra"><span id="barraFill" style="width: 33%;"></span></div>
+      </div>
+
+      <form id="formFunil" novalidate="">
+
+        <!-- 1 -->
+        <fieldset class="passo" data-passo="1">
+          <h2 class="pergunta">Festejas o quê?</h2>
+          <p class="sub">Escolhe o que mais se aproxima. Se não houver, escolhe “outro” e conta-me.</p>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="tipo_evento" value="Aniversário" required=""><span>Aniversário</span></label>
+            <label class="chip"><input type="radio" name="tipo_evento" value="Festa infantil"><span>Festa infantil</span></label>
+            <label class="chip"><input type="radio" name="tipo_evento" value="Batizado / 1º aniversário"><span>Batizado / 1º aniversário</span></label>
+            <label class="chip"><input type="radio" name="tipo_evento" value="Noivado"><span>Noivado</span></label>
+            <label class="chip"><input type="radio" name="tipo_evento" value="Casamento"><span>Casamento</span></label>
+            <label class="chip"><input type="radio" name="tipo_evento" value="Corporativo"><span>Corporativo</span></label>
+            <label class="chip"><input type="radio" name="tipo_evento" value="Outro"><span>Outro — conta-me</span></label>
+          </div>
+        </fieldset>
+
+        <!-- 2 -->
+        <fieldset class="passo" data-passo="2" hidden="">
+          <h2 class="pergunta">Para quando?</h2>
+          <p class="sub">Diz-me a data. Digo-te se estou livre — sem enrolação.</p>
+          <div class="campo">
+            <label for="data_evento">Data do evento</label>
+            <input type="date" id="data_evento" name="data_evento" required="">
+          </div>
+          <div class="campo">
+            <label for="cidade">Onde é? <span>(se já souberes)</span></label>
+            <input type="text" id="cidade" name="cidade" placeholder="Luanda, talvez…">
+          </div>
+        </fieldset>
+
+        <!-- 3 -->
+        <fieldset class="passo" data-passo="3" hidden="">
+          <h2 class="pergunta">Combinamos?</h2>
+          <p class="sub">Só te escrevo para falar da tua data. Mais nada — prometo.</p>
+          <div class="campo">
+            <label for="nome">Como te chamas?</label>
+            <input type="text" id="nome" name="nome" placeholder="O teu nome" required="" autocomplete="name">
+          </div>
+          <div class="campo">
+            <label for="notas">Notas <span>(se quiseres contar mais alguma coisa)</span></label>
+            <textarea id="notas" name="notas" rows="3" placeholder="O que tens em mente?"></textarea>
+          </div>
+        </fieldset>
+
+        <p class="erro" id="erroForm" role="alert" hidden="">Escolhe uma opção para continuar.</p>
+
+        <div class="nav-botoes">
+          <button type="button" class="btn btn-ghost" id="btnVoltar" hidden="">← Voltar</button>
+          <button type="button" class="btn btn-primary" id="btnAvancar">Continuar</button>
+          <button type="submit" class="btn btn-primary" id="btnEnviar" hidden="">Está, enviar</button>
+        </div>
+
+        <p class="enviando" id="enviando" hidden="">A mandar…</p>
+      </form>
+
+      <!-- SUCESSO -->
+      <div class="sucesso" id="sucesso" hidden="">
+        <div class="sucesso-icone">✓</div>
+        <h2>Tudo Pronto!</h2>
+        <p>Apenas clica no botão abaixo para enviar a tua mensagem no WhatsApp.</p>
+        <p class="sucesso-nota">
+          Serás respondido logo de seguida com a confirmação de disponibilidade
+          e o catálogo com todas as opções e valores.
+        </p>
+        <p id="sucessoResumo"></p>
+        <div class="sucesso-acoes">
+          <a href="#" class="btn btn-primary" id="btnWhats" target="_blank" rel="noopener">Enviar Mensagem no WhatsApp</a>
+          <button type="button" class="btn btn-ghost-dark" id="btnRecomecar">Pergunta outra vez</button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- EXPERIÊNCIA -->
+  <section class="experience" id="experiencia" style="position: relative;">
+    <div class="experience-layout">
+      <div class="experience-image">
+        <img src="assets/img/foto-08.jpg" alt="Fotografia de evento" loading="lazy" style="--fz: 1; --fx: 50%; --fy: 68%;">
+      </div>
+
+      <div class="experience-content">
+        <div class="section-label">Porque é que isto funciona</div>
+        <h2>Não é só estar lá.<br>É não perder o momento.</h2>
+        <p>
+          Qualquer um aponta a câmara quando sopram as velas. O difícil é
+          apanhar o que acontece um segundo antes — o respirar fundo da
+          tua mãe, o olhar que tu nem viste.
+        </p>
+
+        <div class="features">
+          <div class="feature">
+            <div class="feature-number">01</div>
+            <div>
+              <h3>Eu trato de tudo</h3>
+              <p>Não tens de me dizer “tira uma aqui”. Estou atento o tempo todo.</p>
+            </div>
+          </div>
+          <div class="feature">
+            <div class="feature-number">02</div>
+            <div>
+              <h3>5 a 7 horas contigo</h3>
+              <p>Do início ao fim da festa. Nada de pacote de duas horas a meio.</p>
+            </div>
+          </div>
+          <div class="feature">
+            <div class="feature-number">03</div>
+            <div>
+              <h3>Tu escolhes à vontade</h3>
+              <p>Site privado, sem pressa. Vais e voltas quantas vezes quiseres.</p>
+            </div>
+          </div>
+          <div class="feature">
+            <div class="feature-number">04</div>
+            <div>
+              <h3>10 dias e está feito</h3>
+              <p>Digitais em 10 dias. Impresso em 20 dias úteis. Sem “ainda está para vir”.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- CTA -->
+  <section class="cta" id="contacto" style="position: relative;">
+    <div class="section-label">Última pergunta</div>
+    <h2>Então? A tua data é quando?</h2>
+    <p>
+      Se chegaste até aqui, já tens alguma coisa marcada.
+      Diz-me a data e respondo-te hoje mesmo.
+    </p>
+    <a href="#reservar" class="btn btn-primary btn-lg">Conta-me a tua data</a>
+  </section>
+
+
+  <!-- FOOTER -->
+  <footer>
+    <strong>Elly Fotógrafo</strong>
+    <div>© 2025 · Angola · Mais de 4 anos a contar histórias</div>
+  </footer>
+
+  <!-- WHATSAPP FLUTUANTE -->
+  <a href="https://wa.me/244900000000?text=Oi%20Elly!%20Vi%20o%20teu%20trabalho%20e%20queria%20saber%20se%20tens%20a%20minha%20data." class="whatsapp" target="_blank" rel="noopener" aria-label="Falar pelo WhatsApp">☎</a>
+
+  <script src="/funil.js"></script>
+  <script src="/editor.js"></script>
+
+
+</body></html>
