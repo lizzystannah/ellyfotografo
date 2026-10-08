@@ -65,6 +65,7 @@
       .then(function (r) { return r.json().catch(function () { return { erro: 'Resposta inválida.' }; }); })
       .then(function (d) {
         if (d.expirada) { mostrarExpirada(d); return 'expirada'; }
+        if (d.fechada) { mostrarFechada(d); return 'fechada'; }
         if (d.erro) { mostrarErro(d.erro); return 'erro'; }
         if (d.requerAcesso) { mostrarAcesso(d); return 'acesso'; }
         G = d; arrancar(); return 'ok';
@@ -100,6 +101,26 @@
       }
     }
     document.title = ((d && d.nome) || 'Galeria') + ' (Expirada) · Elly Fotógrafo';
+  }
+
+  function mostrarFechada(d) {
+    el('acesso').hidden = false;
+    el('app').hidden = true;
+    if (el('acessoForm')) el('acessoForm').hidden = true;
+    el('acessoTitulo').textContent = (d && d.nome) || 'Galeria';
+    var box = el('acessoExpirada');
+    if (box) {
+      box.hidden = false;
+      var msg = el('expiradaMsg');
+      if (msg) msg.textContent = 'Esta seleção já foi concluída e o link está fechado. Se precisares de alterar alguma coisa, contacta o fotógrafo para reativar o link.';
+      var btn = el('btnReativarWa');
+      if (btn) {
+        var tel = digitos((d && d.whatsappFotografo) || '244923123456');
+        var textoWa = 'Olá! Concluí a seleção da galeria "' + ((d && d.nome) || '') + '" mas preciso de falar contigo sobre ela. Podes ajudar-me?';
+        btn.href = 'https://wa.me/' + tel + '?text=' + encodeURIComponent(textoWa);
+      }
+    }
+    document.title = ((d && d.nome) || 'Galeria') + ' (Seleção concluída) · Elly Fotógrafo';
   }
 
   function mostrarErroLocal(msg) {

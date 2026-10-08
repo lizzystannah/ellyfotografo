@@ -806,6 +806,9 @@ function acharGaleriaPublica(req) {
   if (g.expiraEm && Date.parse(g.expiraEm) < Date.now()) {
     return { erro: 410, msg: 'Esta galeria expirou. Contacta o fotógrafo para reativar o acesso.', expirada: true, g };
   }
+  if (g.selecao && g.selecao.finalizada) {
+    return { erro: 410, msg: 'Esta seleção já foi concluída e o link está fechado. Contacta o fotógrafo para reativar o acesso.', fechada: true, g };
+  }
   return { g };
 }
 
@@ -835,6 +838,7 @@ pub.get('/galeria/:slug', (req, res) => {
     return res.status(r.erro).json({
       erro: r.msg,
       expirada: !!r.expirada,
+      fechada: !!r.fechada,
       nome: r.g ? r.g.nome : 'Galeria',
       whatsappFotografo: WHATSAPP_FOTOGRAFO
     });
@@ -986,6 +990,11 @@ api.put('/galerias/:id', async (req, res) => {
     const d = Math.max(1, parseInt(b.reativarDias || b.dias, 10) || 30);
     g.dias = d;
     g.expiraEm = new Date(Date.now() + d * 864e5).toISOString();
+    /* reabrir o link: mantém as fotos já escolhidas mas permite ao cliente entrar de novo */
+    if (g.selecao && g.selecao.finalizada) {
+      g.selecao.finalizada = false;
+      g.selecao.atualizadoEm = new Date().toISOString();
+    }
   }
   if (b.senha !== undefined) g.senha = String(b.senha || 'ellyfotografo').trim();
   if (b.privada !== undefined) g.privada = !!b.privada;
