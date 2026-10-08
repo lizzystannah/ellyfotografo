@@ -38,6 +38,18 @@
   function preco() { return parseInt(G.precoExtra, 10) || 0; }
   function extras() { return limite() ? Math.max(0, escolhidas.length - limite()) : 0; }
 
+  /* "Ver o site" é só para o fotógrafo: este navegador tem sessão do painel?
+     O cliente nem vê o link — fica só na galeria. */
+  try {
+    var sessaoStaff = localStorage.getItem('elly_sessao');
+    var eStaff = false;
+    try { eStaff = !!(sessaoStaff && JSON.parse(sessaoStaff).token); } catch (e2) {}
+    if (!eStaff) {
+      var linksSite = document.querySelectorAll('a.voltar[href="/"]');
+      for (var li = 0; li < linksSite.length; li++) linksSite[li].hidden = true;
+    }
+  } catch (e) {}
+
   /* ---- acesso (galeria privada) ---- */
   var CHAVE_WHATS = 'elly_gal_' + slug;
   var CHAVE_SENHA = 'elly_gal_pwd_' + slug;

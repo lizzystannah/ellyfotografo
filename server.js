@@ -695,6 +695,7 @@ app.get(['/health', '/api/health'], (req, res) => {
     timestamp: new Date().toISOString(),
     r2Ativo: !!(r2Client && r2Bucket),
     mysqlAtivo: !!dbPool,
+    mysqlPronto: !!dbPronto,
     totalGalerias: galerias.length,
     totalTemplates: templatesLanding.length
   });
@@ -980,21 +981,27 @@ api.put('/galerias/:id', async (req, res) => {
   if (!g) return res.status(404).json({ erro: 'Galeria inexistente.' });
   const b = req.body || {};
   if (b.nome !== undefined) g.nome = String(b.nome).trim();
+  /* estender o prazo ou reativar reabre o link: mantém as fotos já escolhidas
+     mas permite ao cliente entrar de novo */
+  const reabrir = () => {
+    if (g.selecao && g.selecao.finalizada) {
+      g.selecao.finalizada = false;
+      g.selecao.atualizadoEm = new Date().toISOString();
+    }
+  };
   if (b.dias !== undefined) {
     g.dias = Math.max(1, parseInt(b.dias, 10) || 30);
     g.expiraEm = new Date(Date.now() + g.dias * 864e5).toISOString();
+    reabrir();
   } else if (b.expiraEm !== undefined) {
     g.expiraEm = b.expiraEm;
+    reabrir();
   }
   if (b.reativar) {
     const d = Math.max(1, parseInt(b.reativarDias || b.dias, 10) || 30);
     g.dias = d;
     g.expiraEm = new Date(Date.now() + d * 864e5).toISOString();
-    /* reabrir o link: mantém as fotos já escolhidas mas permite ao cliente entrar de novo */
-    if (g.selecao && g.selecao.finalizada) {
-      g.selecao.finalizada = false;
-      g.selecao.atualizadoEm = new Date().toISOString();
-    }
+    reabrir();
   }
   if (b.senha !== undefined) g.senha = String(b.senha || 'ellyfotografo').trim();
   if (b.privada !== undefined) g.privada = !!b.privada;
