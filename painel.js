@@ -222,7 +222,15 @@
 
   function carregarGalerias() {
     return api('/galerias').then(function (lista) {
-      galerias = lista;
+      /* segurança: mais recentes primeiro mesmo se o servidor devolver fora de ordem */
+      galerias = (lista || []).slice().sort(function (a, b) {
+        var ca = (a && (a.criadaEm || a.atualizadoEm)) || '';
+        var cb = (b && (b.criadaEm || b.atualizadoEm)) || '';
+        if (ca !== cb) return cb < ca ? -1 : 1;
+        var ia = (a && a.id) || '';
+        var ib = (b && b.id) || '';
+        return ib < ia ? -1 : (ib > ia ? 1 : 0);
+      });
       desenharGalerias();
     });
   }

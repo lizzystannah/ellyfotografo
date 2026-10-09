@@ -233,7 +233,7 @@ function linhaParaCliente(r) {
 async function carregarDoMySQL() {
   if (!dbPool) return;
   try {
-    const [linhasG] = await dbPool.query('SELECT * FROM galerias');
+    const [linhasG] = await dbPool.query('SELECT * FROM galerias ORDER BY criada_em DESC, id DESC');
     const [linhasC] = await dbPool.query('SELECT * FROM clientes');
     if (Array.isArray(linhasG) && linhasG.length) {
       galerias = linhasG.map(linhaParaGaleria);
@@ -468,7 +468,7 @@ async function refrescarGaleriaDoMySQL(chave) {
 async function refrescarGaleriasDoMySQL() {
   if (!dbPool || !dbPronto) return;
   try {
-    const [linhas] = await dbPool.query('SELECT * FROM galerias');
+    const [linhas] = await dbPool.query('SELECT * FROM galerias ORDER BY criada_em DESC, id DESC');
     if (Array.isArray(linhas) && linhas.length) {
       for (const r of linhas) aplicarLinhaFresca(linhaParaGaleria(r));
     }
@@ -483,6 +483,22 @@ async function refrescarGaleriasDoMySQL() {
 }
 
 /* ---------------- persistência (stub) ---------------- */
+
+/* lista de galerias SEMPRE ordenada: criação mais recente primeiro (com
+   fallback para atualizadoEm/id). Sem isto, a ordem vinha do array em
+   memória / do SELECT sem ORDER BY e dançava sozinha entre arranques. */
+function ordenarGalerias(lista) {
+  if (!Array.isArray(lista)) return lista;
+  lista.sort(function (a, b) {
+    var ca = (a && (a.criadaEm || a.atualizadoEm)) || '';
+    var cb = (b && (b.criadaEm || b.atualizadoEm)) || '';
+    if (ca !== cb) return cb < ca ? -1 : 1;
+    var ia = (a && a.id) || '';
+    var ib = (b && b.id) || '';
+    return ib < ia ? -1 : (ib > ia ? 1 : 0);
+  });
+  return lista;
+}
 
 function lerJson(nome, padrao) {
   const alvo = path.join(DADOS, nome);
@@ -506,7 +522,7 @@ function gravarJson(nome, valor) {
   fs.renameSync(tmp, alvo);   /* escrita atómica: falha a meio não estropa */
 }
 
-let galerias = lerJson('galerias.json', []);
+let galerias = ordenarGalerias(lerJson('galerias.json', []));
 let clientes = lerJson('clientes.json', []);
 let estadoLanding = lerJson('landing.json', null);
 let templatesLanding = lerJson('templates_landing.json', []);
@@ -1165,7 +1181,7 @@ api.get('/', (req, res) => res.json({ ok: true }));
 
 api.get('/galerias', async (req, res) => {
   try { await refrescarGaleriasDoMySQL(); } catch (e) {}
-  res.json(galerias.map(publicaGaleria));
+  res.json(ordenarGalerias(galerias.slice()).map(publicaGaleria));
 });
 
 api.post('/galerias', async (req, res) => {
