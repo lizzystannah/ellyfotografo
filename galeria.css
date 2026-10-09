@@ -419,7 +419,10 @@ button { font: inherit; }
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
+  /* a faixa do carrossel tem 300% de largura (3 janelas) e é posicionada por
+     transform: tem de ficar encostada à esquerda — com center, o JS desloca
+     -1 janela mas o flex centra +1, e o visor mostra sempre a foto SEGUINTE */
+  justify-content: flex-start;
   width: 100%;
   height: calc(100% - 100px);
   min-height: 0;
@@ -447,9 +450,13 @@ button { font: inherit; }
 .vfaixa {
   display: flex;
   align-items: stretch;
+  justify-content: flex-start;
   height: 100%;
   width: 300%;
   flex: 0 0 300%;
+  max-width: 300%;
+  flex-shrink: 0;
+  margin: 0;
   will-change: transform;
 }
 .vfaixa > .vslide,
