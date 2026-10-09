@@ -320,9 +320,9 @@
 
     /* A ordem do clique é EXATAMENTE a ordem de G.fotos: cada cartão guarda
        data-i + data-url, e o clique confirma pela URL antes de abrir.
-       O layout é masonry por colunas (sem vazios), por isso a ordem VISUAL
-       (por colunas) difere da ordem do array — mas o clique abre sempre
-       a foto que está por baixo do dedo. */
+       O layout é grid por FILAS (1-2-3 na horizontal), por isso a ordem
+       visual é a ordem cronológica — e o clique abre sempre a foto
+       que está por baixo do dedo. */
     grelhaEl.innerHTML = (G.fotos || []).map(function (f, i) {
       /* nome original limpo no alt (sem o sufixo único da URL guardada) */
       var metaG = (G.fotosMeta || {})[f] || {};
