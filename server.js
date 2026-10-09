@@ -18,6 +18,7 @@ const path = require('path');
 const crypto = require('crypto');
 const sharp = require('sharp');
 const exifr = require('exifr');
+const multer = require('multer');
 const { S3Client, PutObjectCommand, DeleteObjectCommand, DeleteObjectsCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const mysql = require('mysql2/promise');
 
@@ -623,12 +624,17 @@ function guardaImagem(dataUrl, destino) {
   return ext;
 }
 
-/* Processa a imagem com compressão Sharp e faz upload para Cloudflare R2 ou guarda localmente */
-async function processarEGuardarImagem(dataUrl, pastaRelativa, nomeSemExt) {
-  const m = /^data:image\/(png|jpe?g|webp|gif|avif);base64,(.+)$/i.exec(dataUrl || '');
-  if (!m) return null;
-
-  const rawBuffer = Buffer.from(m[2], 'base64');
+/* Processa a imagem com compressão Sharp e faz upload para Cloudflare R2 ou guarda localmente.
+   Aceita data-URL (fluxo antigo) OU buffer direto (upload multipart do navegador). */
+async function processarEGuardarImagem(dataUrlOuBuffer, pastaRelativa, nomeSemExt) {
+  let rawBuffer = null;
+  if (Buffer.isBuffer(dataUrlOuBuffer)) {
+    rawBuffer = dataUrlOuBuffer;
+  } else {
+    const m = /^data:image\/(png|jpe?g|webp|gif|avif);base64,(.+)$/i.exec(dataUrlOuBuffer || '');
+    if (!m) return null;
+    rawBuffer = Buffer.from(m[2], 'base64');
+  }
 
   // Compressão com Sharp (auto-orienta EXIF com .rotate() para preservar fotos verticais, Max 2200px, JPEG com qualidade 82%)
   let compressedBuffer = rawBuffer;
@@ -1309,7 +1315,87 @@ api.delete('/galerias/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
-/* fotos */
+/* fotos — upload DIRETO: o navegador envia os ficheiros originais (multipart)
+   e o BACKEND faz o trabalho pesado (EXIF, Sharp, R2). Envio em LOTES com
+   retoma: cada lote confirmado fica guardado; se a aba fechar ou a net cair,
+   o painel reenvia só o que falta (dedup pelo nome original). */
+const uploadLote = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 60 * 1024 * 1024, files: 10 }
+});
+
+api.post('/galerias/:id/fotos-lote', (req, res) => {
+  uploadLote.array('fotos', 10)(req, res, async function (err) {
+    if (err) {
+      console.error('ERRO upload lote:', err.message);
+      return res.status(400).json({ erro: 'Falha a receber as fotos. Tenta de novo.' });
+    }
+    const g = galerias.find(x => x.id === req.params.id);
+    if (!g) return res.status(404).json({ erro: 'Galeria inexistente.' });
+    const ficheiros = req.files || [];
+    if (!ficheiros.length) return res.status(400).json({ erro: 'Nenhuma fotografia recebida.' });
+    const criterioOrdem = (req.body && req.body.ordem) || g.ordemFotos || 'captura';
+    g.fotosMeta = g.fotosMeta || {};
+    const guardadas = [];
+    const saltadas = [];
+    const falhas = [];
+    for (let idx = 0; idx < ficheiros.length; idx++) {
+      const f = ficheiros[idx];
+      const origem = nomeOriginalSeguro(f.originalname);
+      /* dedup: foto com o mesmo nome original já está na galeria → saltar */
+      const jaExiste = g.fotos.some(function (u) {
+        const m = g.fotosMeta[u];
+        return m && m.nomeOriginal === origem;
+      });
+      if (jaExiste) { saltadas.push(origem); continue; }
+      const semExt = origem.includes('.') ? origem.slice(0, origem.lastIndexOf('.')) : origem;
+      const base = (semExt || '').trim() || String(g.fotos.length + 1).padStart(4, '0');
+      const nomeUnico = base.slice(0, 80).trim() + '_' + Date.now().toString(36) + '_' + idx;
+      try {
+        const url = await processarEGuardarImagem(f.buffer, 'fotos/' + g.slug, nomeUnico);
+        if (!url) { falhas.push(origem); continue; }
+        g.fotos.push(url);
+        guardadas.push(url);
+        let meta = { url, nomeOriginal: origem, dataCaptura: null, hora: null, camera: null, timestamp: null };
+        try {
+          const extraido = await extrairMetaImagem(f.buffer, origem);
+          meta.timestamp = extraido.timestamp || null;
+          meta.dataCaptura = extraido.dataCaptura;
+          meta.hora = extraido.hora;
+          meta.camera = extraido.camera;
+        } catch (e) {}
+        if (!meta.timestamp) meta.timestamp = Date.now() + idx;
+        g.fotosMeta[url] = meta;
+      } catch (e) {
+        console.error('ERRO a processar foto do lote:', origem, '-', e.message);
+        falhas.push(origem);
+      }
+    }
+    ordenarFotos(g, criterioOrdem);
+    tocarGaleria(g);
+    guardarGalerias();
+    res.json({
+      total: g.fotos.length,
+      guardadas,
+      saltadas,
+      falhas,
+      galeria: publicaGaleria(g)
+    });
+  });
+});
+
+/* estado do upload para retoma: que nomes originais já estão guardados */
+api.get('/galerias/:id/fotos-estado', (req, res) => {
+  const g = galerias.find(x => x.id === req.params.id);
+  if (!g) return res.status(404).json({ erro: 'Galeria inexistente.' });
+  const meta = g.fotosMeta || {};
+  const nomes = g.fotos.map(function (u) {
+    return (meta[u] && meta[u].nomeOriginal) || null;
+  }).filter(Boolean);
+  res.json({ total: g.fotos.length, nomes });
+});
+
+/* fotos (fluxo antigo base64 — mantido para compatibilidade) */
 api.post('/galerias/:id/fotos', async (req, res) => {
   const g = galerias.find(x => x.id === req.params.id);
   if (!g) return res.status(404).json({ erro: 'Galeria inexistente.' });

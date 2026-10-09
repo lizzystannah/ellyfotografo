@@ -181,13 +181,16 @@
     <!-- progresso do processamento sequencial (um cartão de cada vez) -->
     <div class="fila-proc" id="filaProc" hidden>
       <div class="fila-proc-topo">
-        <span id="filaProcTxt">A processar 0/0…</span>
-        <button type="button" class="btn-micro" id="filaProcCancelar" title="Parar o processamento das restantes">Parar</button>
+        <span id="filaProcTxt">A enviar 0/0…</span>
+        <button type="button" class="btn-micro" id="filaProcCancelar" title="Parar o envio das restantes">Parar</button>
       </div>
       <div class="u-prog-bar-wrap"><div class="u-prog-bar-fill" id="filaProcBar" style="width:0%"></div></div>
     </div>
 
     <div class="foto-vez" id="fotoVez" hidden></div>
+
+    <!-- retoma: voltar a escolher os mesmos ficheiros reenvia só o que falta -->
+    <p class="dica" id="dicaRetoma" style="margin-top:10px">Se a aba fechar ou a net cair, volta a escolher as mesmas fotos — o sistema pergunta ao servidor e envia só as que faltam.</p>
 
     <!-- Controles inteligentes de metadata EXIF e ordenação das fotos -->
     <div class="painel-ordem-fotos" id="painelOrdemFotos" hidden>
