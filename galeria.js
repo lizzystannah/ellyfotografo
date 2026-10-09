@@ -270,40 +270,34 @@
     im.src = url;
   }
 
-  /* Padrão por ecrã: 5 no computador, 3 no telemóvel (≤680px).
-     O cliente pode trocar nos botões 3/5; a escolha é guardada. */
-  var modoGrade = '5';
-  function ecraTelemovel() {
-    try {
-      if (window.matchMedia) return window.matchMedia('(max-width: 680px)').matches;
-      return (window.innerWidth || 0) <= 680;
-    } catch (e) { return false; }
-  }
+  /* Padrão: 3 fotografias por coluna (em qualquer ecrã).
+     O cliente pode trocar para 4 nos botões 3/4; a escolha é guardada. */
+  var modoGrade = '3';
   function definirModoGrade(modo) {
-    /* migração dos modos antigos (2/4 → 3/5) */
-    if (modo !== '3' && modo !== '5') modo = ecraTelemovel() ? '3' : '5';
+    /* migração dos modos antigos (2/5 → 3) */
+    if (modo !== '3' && modo !== '4') modo = '3';
     modoGrade = modo;
     var gEl = el('grelha');
     if (gEl) {
       gEl.classList.toggle('grelha-cols-3', modo === '3');
-      gEl.classList.toggle('grelha-cols-5', modo === '5');
-      gEl.classList.remove('grelha-compacta', 'grelha-confortavel', 'grelha-cols-2', 'grelha-cols-4');
+      gEl.classList.toggle('grelha-cols-4', modo === '4');
+      gEl.classList.remove('grelha-compacta', 'grelha-confortavel', 'grelha-cols-2', 'grelha-cols-5');
     }
     if (el('btnGrade3')) el('btnGrade3').classList.toggle('on', modo === '3');
-    if (el('btnGrade5')) el('btnGrade5').classList.toggle('on', modo === '5');
+    if (el('btnGrade4')) el('btnGrade4').classList.toggle('on', modo === '4');
     try { localStorage.setItem('gal_grade_modo', modo); } catch (e) {}
   }
 
   function iniciarControlesGrade() {
     var salvo = null;
     try { salvo = localStorage.getItem('gal_grade_modo'); } catch (e) {}
-    /* sem escolha guardada: 3 no telemóvel, 5 no computador */
-    definirModoGrade(salvo || (ecraTelemovel() ? '3' : '5'));
+    /* sem escolha guardada (ou guardada num modo antigo): 3 */
+    definirModoGrade(salvo);
     if (el('btnGrade3')) {
       el('btnGrade3').onclick = function () { definirModoGrade('3'); };
     }
-    if (el('btnGrade5')) {
-      el('btnGrade5').onclick = function () { definirModoGrade('5'); };
+    if (el('btnGrade4')) {
+      el('btnGrade4').onclick = function () { definirModoGrade('4'); };
     }
   }
 
@@ -323,7 +317,7 @@
        horizontal só porque a vizinha é vertical. A leitura continua 1-2-3
        na horizontal e o clique (data-i/data-url) abre sempre a foto
        que está por baixo do dedo. */
-    var nCols = modoGrade === '5' ? 5 : 3;
+    var nCols = modoGrade === '4' ? 4 : 3;
     var cols = [];
     for (var ci = 0; ci < nCols; ci++) cols.push([]);
     (G.fotos || []).forEach(function (f, i) {

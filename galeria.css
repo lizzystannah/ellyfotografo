@@ -263,19 +263,18 @@ body.a-imprimir .resumo { visibility: hidden !important; }
   transition: max-width .25s ease;
 }
 
-/* Grade: 3 ou 5 fotografias por FILA (ordem cronológica na horizontal).
-   As fotos são DISTRIBUÍDAS POR COLUNAS EM ORDEM (1-4-7 na coluna 1,
-   2-5-8 na 2, 3-6-9 na 3): cada foto cola-se à de cima da mesma coluna,
-   por isso nunca há vazio por baixo de uma horizontal só porque a vizinha
-   é vertical. A leitura continua 1-2-3 na horizontal. Cada foto aparece
-   INTEIRA (sem cortes). O clique (data-i/data-url) abre sempre a foto
-   clicada, inteira no visor. */
+/* Grade: 3 ou 4 fotografias (padrão 3), as fotos são DISTRIBUÍDAS POR
+   COLUNAS EM ORDEM (1-4-7 na coluna 1, 2-5-8 na 2, 3-6-9 na 3): cada foto
+   cola-se à de cima da mesma coluna, por isso nunca há vazio por baixo de
+   uma horizontal só porque a vizinha é vertical. A leitura continua 1-2-3
+   na horizontal. Cada foto aparece INTEIRA (sem cortes). O clique
+   (data-i/data-url) abre sempre a foto clicada, inteira no visor. */
 .grelha.grelha-cols-3 {
   display: flex;
   gap: 12px;
   align-items: flex-start;
 }
-.grelha.grelha-cols-5 {
+.grelha.grelha-cols-4 {
   display: flex;
   gap: 10px;
   align-items: flex-start;
@@ -287,12 +286,12 @@ body.a-imprimir .resumo { visibility: hidden !important; }
   flex-direction: column;
   gap: 12px;
 }
-.grelha-cols-5 .grelha-col { gap: 10px; }
+.grelha-cols-4 .grelha-col { gap: 10px; }
 @media (max-width: 680px) {
-  .grelha.grelha-cols-3, .grelha.grelha-cols-5 { gap: 8px; padding: 12px 8px; }
-  .grelha-col, .grelha-cols-5 .grelha-col { gap: 8px; }
+  .grelha.grelha-cols-3, .grelha.grelha-cols-4 { gap: 8px; padding: 12px 8px; }
+  .grelha-col, .grelha-cols-4 .grelha-col { gap: 8px; }
 }
-.grelha.grelha-cols-3 .foto, .grelha.grelha-cols-5 .foto {
+.grelha.grelha-cols-3 .foto, .grelha.grelha-cols-4 .foto {
   margin: 0;
   width: 100%;
 }
