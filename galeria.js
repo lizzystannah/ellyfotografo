@@ -225,32 +225,40 @@
     im.src = url;
   }
 
-  var modoGrade = '2';
+  /* Padrão por ecrã: 5 no computador, 3 no telemóvel (≤680px).
+     O cliente pode trocar nos botões 3/5; a escolha é guardada. */
+  var modoGrade = '5';
+  function ecraTelemovel() {
+    try {
+      if (window.matchMedia) return window.matchMedia('(max-width: 680px)').matches;
+      return (window.innerWidth || 0) <= 680;
+    } catch (e) { return false; }
+  }
   function definirModoGrade(modo) {
-    /* migração dos modos antigos */
-    if (modo === '3') modo = '3';
-    else modo = '2';
+    /* migração dos modos antigos (2/4 → 3/5) */
+    if (modo !== '3' && modo !== '5') modo = ecraTelemovel() ? '3' : '5';
     modoGrade = modo;
     var gEl = el('grelha');
     if (gEl) {
-      gEl.classList.toggle('grelha-cols-2', modo === '2');
       gEl.classList.toggle('grelha-cols-3', modo === '3');
-      gEl.classList.remove('grelha-compacta', 'grelha-confortavel', 'grelha-cols-4');
+      gEl.classList.toggle('grelha-cols-5', modo === '5');
+      gEl.classList.remove('grelha-compacta', 'grelha-confortavel', 'grelha-cols-2', 'grelha-cols-4');
     }
-    if (el('btnGrade2')) el('btnGrade2').classList.toggle('on', modo === '2');
     if (el('btnGrade3')) el('btnGrade3').classList.toggle('on', modo === '3');
+    if (el('btnGrade5')) el('btnGrade5').classList.toggle('on', modo === '5');
     try { localStorage.setItem('gal_grade_modo', modo); } catch (e) {}
   }
 
   function iniciarControlesGrade() {
-    var salvo = '2';
-    try { salvo = localStorage.getItem('gal_grade_modo') || '2'; } catch (e) {}
-    definirModoGrade(salvo);
-    if (el('btnGrade2')) {
-      el('btnGrade2').onclick = function () { definirModoGrade('2'); };
-    }
+    var salvo = null;
+    try { salvo = localStorage.getItem('gal_grade_modo'); } catch (e) {}
+    /* sem escolha guardada: 3 no telemóvel, 5 no computador */
+    definirModoGrade(salvo || (ecraTelemovel() ? '3' : '5'));
     if (el('btnGrade3')) {
       el('btnGrade3').onclick = function () { definirModoGrade('3'); };
+    }
+    if (el('btnGrade5')) {
+      el('btnGrade5').onclick = function () { definirModoGrade('5'); };
     }
   }
 

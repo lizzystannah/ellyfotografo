@@ -85,9 +85,10 @@ button { font: inherit; }
 /* ================= CAPA ================= */
 .capa {
   position: relative;
-  height: 56vh;
-  min-height: 340px;
-  max-height: 520px;
+  /* capa horizontal com mais presença: mais alta no computador */
+  height: 72vh;
+  min-height: 440px;
+  max-height: 720px;
   overflow: hidden;
   background: #141418;
 }
@@ -225,31 +226,30 @@ button { font: inherit; }
   transition: max-width .25s ease;
 }
 
-/* Grade: 2 ou 3 fotografias por linha, sem espaços órfãos.
-   columns (masonry) em vez de grid por linhas: cada foto cola-se à anterior
-   da mesma coluna, por isso uma horizontal nunca deixa vazio por baixo só
-   porque a vizinha é vertical. Cada cartão mantém data-i/data-url, por isso
-   o clique continua a abrir exatamente a foto clicada. */
-.grelha.grelha-cols-2 {
-  display: block;
-  columns: 2;
-  column-gap: 12px;
-}
+/* Grade: 3 ou 5 fotografias por coluna (masonry, sem espaços órfãos).
+   Padrão: 5 no computador, 3 no telemóvel — o cliente troca nos botões 3/5.
+   Cada cartão mantém data-i/data-url, por isso o clique continua a abrir
+   exatamente a foto clicada. */
 .grelha.grelha-cols-3 {
   display: block;
   columns: 3;
   column-gap: 12px;
 }
-@media (max-width: 680px) {
-  .grelha.grelha-cols-2, .grelha.grelha-cols-3 { column-gap: 8px; padding: 12px 8px; }
+.grelha.grelha-cols-5 {
+  display: block;
+  columns: 5;
+  column-gap: 10px;
 }
-.grelha.grelha-cols-2 .foto, .grelha.grelha-cols-3 .foto {
+@media (max-width: 680px) {
+  .grelha.grelha-cols-3, .grelha.grelha-cols-5 { column-gap: 8px; padding: 12px 8px; }
+}
+.grelha.grelha-cols-3 .foto, .grelha.grelha-cols-5 .foto {
   display: inline-block;
   width: 100%;
   margin: 0 0 12px;
 }
 @media (max-width: 680px) {
-  .grelha.grelha-cols-2 .foto, .grelha.grelha-cols-3 .foto { margin-bottom: 8px; }
+  .grelha.grelha-cols-3 .foto, .grelha.grelha-cols-5 .foto { margin-bottom: 8px; }
 }
 
 .foto {
@@ -669,9 +669,9 @@ button { font: inherit; }
 /* ================= MOBILE ================= */
 @media (max-width: 760px) {
   .capa {
-    height: 42vh;
-    min-height: 260px;
-    max-height: 380px;
+    height: 52vh;
+    min-height: 320px;
+    max-height: 460px;
   }
   .capa-txt h1 { font-size: clamp(22px, 6.5vw, 32px); margin-top: 6px; }
   .capa-sub { font-size: 13px; margin-top: 6px; }
