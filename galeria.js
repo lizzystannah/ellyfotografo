@@ -265,9 +265,11 @@
       grelhaEl.style.maxWidth = '1440px';
     }
 
-    /* A ordem visual é EXATAMENTE a ordem de G.fotos (índice = posição):
-       sem reordenação no cliente, sem masonry por colunas. Assim o clique
-       (data-i) abre sempre a foto que está por baixo do dedo. */
+    /* A ordem do clique é EXATAMENTE a ordem de G.fotos: cada cartão guarda
+       data-i + data-url, e o clique confirma pela URL antes de abrir.
+       O layout é masonry por colunas (sem vazios), por isso a ordem VISUAL
+       (por colunas) difere da ordem do array — mas o clique abre sempre
+       a foto que está por baixo do dedo. */
     grelhaEl.innerHTML = (G.fotos || []).map(function (f, i) {
       return '<figure class="foto" data-i="' + i + '" data-url="' + esc(f) + '">' +
         '<img src="' + esc(f) + '" alt="Fotografia ' + (i + 1) + '" loading="lazy" draggable="false">' +

@@ -225,26 +225,31 @@ button { font: inherit; }
   transition: max-width .25s ease;
 }
 
-/* Grade: 2 ou 3 fotografias por linha, exato em qualquer ecrã.
-   display:grid (por linhas) em vez de columns (por colunas): a ordem visual
-   passa a ser igual à ordem do clique — clicar abre exatamente a foto. */
+/* Grade: 2 ou 3 fotografias por linha, sem espaços órfãos.
+   columns (masonry) em vez de grid por linhas: cada foto cola-se à anterior
+   da mesma coluna, por isso uma horizontal nunca deixa vazio por baixo só
+   porque a vizinha é vertical. Cada cartão mantém data-i/data-url, por isso
+   o clique continua a abrir exatamente a foto clicada. */
 .grelha.grelha-cols-2 {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  align-items: start;
+  display: block;
+  columns: 2;
+  column-gap: 12px;
 }
 .grelha.grelha-cols-3 {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  align-items: start;
+  display: block;
+  columns: 3;
+  column-gap: 12px;
 }
 @media (max-width: 680px) {
-  .grelha.grelha-cols-2, .grelha.grelha-cols-3 { gap: 8px; padding: 12px 8px; }
+  .grelha.grelha-cols-2, .grelha.grelha-cols-3 { column-gap: 8px; padding: 12px 8px; }
 }
 .grelha.grelha-cols-2 .foto, .grelha.grelha-cols-3 .foto {
-  margin-bottom: 0;
+  display: inline-block;
+  width: 100%;
+  margin: 0 0 12px;
+}
+@media (max-width: 680px) {
+  .grelha.grelha-cols-2 .foto, .grelha.grelha-cols-3 .foto { margin-bottom: 8px; }
 }
 
 .foto {
