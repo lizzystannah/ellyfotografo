@@ -318,21 +318,28 @@
       grelhaEl.style.maxWidth = '1440px';
     }
 
-    /* A ordem do clique é EXATAMENTE a ordem de G.fotos: cada cartão guarda
-       data-i + data-url, e o clique confirma pela URL antes de abrir.
-       O layout é grid por FILAS (1-2-3 na horizontal), por isso a ordem
-       visual é a ordem cronológica — e o clique abre sempre a foto
+    /* Distribuição POR COLUNAS EM ORDEM (1-4-7 na coluna 1, 2-5-8 na 2,
+       3-6-9 na 3): cada foto cola-se à de cima, sem vazio por baixo de uma
+       horizontal só porque a vizinha é vertical. A leitura continua 1-2-3
+       na horizontal e o clique (data-i/data-url) abre sempre a foto
        que está por baixo do dedo. */
-    grelhaEl.innerHTML = (G.fotos || []).map(function (f, i) {
-      /* nome original limpo no alt (sem o sufixo único da URL guardada) */
+    var nCols = modoGrade === '5' ? 5 : 3;
+    var cols = [];
+    for (var ci = 0; ci < nCols; ci++) cols.push([]);
+    (G.fotos || []).forEach(function (f, i) {
       var metaG = (G.fotosMeta || {})[f] || {};
       var nomeG = metaG.nomeOriginal || decodeURIComponent(String(f).split('/').pop());
-      return '<figure class="foto" data-i="' + i + '" data-url="' + esc(f) + '">' +
-        '<img src="' + esc(f) + '" alt="' + esc(nomeG) + '" loading="lazy" draggable="false">' +
-        '<button class="sel" type="button" data-sel="' + i + '" title="Selecionar fotografia">' +
-          '<span class="c">♥</span> Selecionar</button>' +
-        '<span class="liga">♥</span>' +
-      '</figure>';
+      cols[i % nCols].push(
+        '<figure class="foto" data-i="' + i + '" data-url="' + esc(f) + '">' +
+          '<img src="' + esc(f) + '" alt="' + esc(nomeG) + '" loading="lazy" draggable="false">' +
+          '<button class="sel" type="button" data-sel="' + i + '" title="Selecionar fotografia">' +
+            '<span class="c">♥</span> Selecionar</button>' +
+          '<span class="liga">♥</span>' +
+        '</figure>'
+      );
+    });
+    grelhaEl.innerHTML = cols.map(function (c) {
+      return '<div class="grelha-col">' + c.join('') + '</div>';
     }).join('');
     marcarFotos();
   }
