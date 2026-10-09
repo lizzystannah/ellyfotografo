@@ -777,57 +777,100 @@
     };
   }
 
-  /* passo 2 → fotos da galeria com leitura de EXIF, metadados e animação */
+  /* passo 2 → fotos da galeria com leitura de EXIF, metadados e animação.
+     FILA SEQUENCIAL: um cartão de cada vez no ecrã + contador (ex.: 45/200).
+     Só se processa uma foto de cada vez (sem travar com 200), libertando a
+     memória de cada uma antes de passar à seguinte. */
   var cancelados = new Set();
-  el('gFotos').addEventListener('change', function () {
-    var lista = Array.prototype.slice.call(this.files || []);
-    if (!lista.length) return;
+  var filaFotos = { lista: [], total: 0, feitas: 0, aCorrer: false, parada: false };
 
-    var container = el('miniaturas');
+  function atualizarFilaProc() {
+    var caixa = el('filaProc');
+    if (!caixa) return;
+    var emCurso = filaFotos.aCorrer && filaFotos.total > 0;
+    caixa.hidden = !emCurso;
+    if (!emCurso) return;
+    el('filaProcTxt').textContent = 'A processar ' + Math.min(filaFotos.feitas + 1, filaFotos.total) +
+      '/' + filaFotos.total + '… (' + filaFotos.feitas + ' prontas)';
+    var pct = filaFotos.total ? Math.round((filaFotos.feitas / filaFotos.total) * 100) : 0;
+    el('filaProcBar').style.width = pct + '%';
+  }
 
-    lista.forEach(function (file, idx) {
-      var idUnico = 'u_foto_' + Date.now() + '_' + idx + '_' + Math.random().toString(36).substring(2, 6);
+  function limparFotoVez() {
+    var vez = el('fotoVez');
+    if (!vez) return;
+    vez.innerHTML = '';
+    vez.hidden = true;
+  }
 
-      var tempDiv = document.createElement('div');
-      tempDiv.className = 'u-item-upload u-carregando';
-      tempDiv.id = idUnico;
-      tempDiv.innerHTML = [
-        '<img src="" alt="' + esc(file.name) + '">',
-        '<button type="button" class="u-remover" data-cancelar="' + idUnico + '" title="Não carregar esta fotografia" aria-label="Cancelar carregamento de ' + esc(file.name) + '">✕</button>',
-        '<div class="u-prog-overlay">',
-        '  <span class="u-prog-num">0%</span>',
-        '  <div class="u-prog-bar-wrap"><div class="u-prog-bar-fill" style="width:0%"></div></div>',
-        '</div>'
-      ].join('');
+  if (el('filaProcCancelar')) {
+    el('filaProcCancelar').addEventListener('click', function () {
+      filaFotos.parada = true;
+      filaFotos.lista = [];
+      filaFotos.aCorrer = false;
+      limparFotoVez();
+      atualizarFilaProc();
+      toast('Processamento parado. As fotos já prontas ficam guardadas.', 'info');
+    });
+  }
 
-      container.appendChild(tempDiv);
+  /* processa UMA foto: cartão único com barra de progresso → revela a foto →
+     converte em miniatura → avança para a seguinte */
+  function processarProximaFoto() {
+    if (filaFotos.parada) { filaFotos.aCorrer = false; atualizarFilaProc(); return; }
+    var item = filaFotos.lista.shift();
+    if (!item) {
+      filaFotos.aCorrer = false;
+      filaFotos.total = 0;
+      limparFotoVez();
+      atualizarFilaProc();
+      return;
+    }
+    var file = item.file;
+    var idUnico = item.id;
+    atualizarFilaProc();
 
-      var metaPromise = extrairMetaFicheiro(file);
+    var vez = el('fotoVez');
+    vez.hidden = false;
+    vez.innerHTML = [
+      '<div class="u-item-upload u-carregando" id="' + idUnico + '">',
+      '  <img src="" alt="' + esc(file.name) + '">',
+      '  <button type="button" class="u-remover" data-cancelar="' + idUnico + '" title="Saltar esta fotografia" aria-label="Saltar ' + esc(file.name) + '">✕</button>',
+      '  <div class="u-prog-overlay">',
+      '    <span class="u-prog-num">0%</span>',
+      '    <div class="u-prog-bar-wrap"><div class="u-prog-bar-fill" style="width:0%"></div></div>',
+      '  </div>',
+      '</div>',
+      '<div class="u-foto-nome">' + esc(file.name) + '</div>'
+    ].join('');
+    var tempDiv = vez.querySelector('#' + idUnico);
 
-      animarLerEProcessarFoto(file, function (prog, srcUrl, concluido) {
-        var imgEl = tempDiv.querySelector('img');
-        var txtEl = tempDiv.querySelector('.u-prog-num');
-        var barEl = tempDiv.querySelector('.u-prog-bar-fill');
+    var metaPromise = extrairMetaFicheiro(file);
 
-        if (imgEl && srcUrl) {
-          if (!imgEl.src || concluido) imgEl.src = srcUrl;
-          imgEl.style.filter = 'blur(' + Math.max(0, (1 - prog) * 16).toFixed(1) + 'px)';
-          imgEl.style.opacity = (0.28 + 0.72 * prog).toFixed(2);
-        }
-        tempDiv.style.setProperty('--u-prog', prog);
-        if (txtEl) txtEl.textContent = Math.round(prog * 100) + '%';
-        if (barEl) barEl.style.width = Math.round(prog * 100) + '%';
+    animarLerEProcessarFoto(file, function (prog, srcUrl, concluido) {
+      if (!document.body.contains(tempDiv)) return; /* foi saltada */
+      var imgEl = tempDiv.querySelector('img');
+      var txtEl = tempDiv.querySelector('.u-prog-num');
+      var barEl = tempDiv.querySelector('.u-prog-bar-fill');
 
-        if (prog >= 1) {
-          metaPromise.then(function (meta) {
-            if (cancelados.has(idUnico)) {
-              cancelados.delete(idUnico);
-              return;
-            }
-            /* a foto passa a pendente: remove-se o cartão temporário e
-               redesenha-se a lista — é aí que nasce o X (data-rmpend) */
-            if (tempDiv.parentNode) tempDiv.parentNode.removeChild(tempDiv);
-            try { if (srcUrl && srcUrl.indexOf('blob:') === 0) URL.revokeObjectURL(srcUrl); } catch (err) {}
+      if (imgEl && srcUrl) {
+        if (!imgEl.src || concluido) imgEl.src = srcUrl;
+        imgEl.style.filter = 'blur(' + Math.max(0, (1 - prog) * 16).toFixed(1) + 'px)';
+        imgEl.style.opacity = (0.28 + 0.72 * prog).toFixed(2);
+      }
+      tempDiv.style.setProperty('--u-prog', prog);
+      if (txtEl) txtEl.textContent = Math.round(prog * 100) + '%';
+      if (barEl) barEl.style.width = Math.round(prog * 100) + '%';
+
+      if (prog >= 1) {
+        metaPromise.then(function (meta) {
+          filaFotos.feitas++;
+          if (cancelados.has(idUnico)) {
+            cancelados.delete(idUnico);
+            toast('«' + file.name + '» saltada.', 'info');
+          } else {
+            /* a foto passa a pendente: redesenha-se a lista de miniaturas
+               (é aí que nasce o X) e liberta-se a memória do cartão único */
             actual.fotos.push({
               nome: file.name,
               dados: srcUrl,
@@ -837,13 +880,40 @@
               timestamp: meta.timestamp
             });
             ordenarFotosActual(actual.ordemFotos || 'captura');
-          }).catch(function () {
-            if (tempDiv.parentNode) tempDiv.parentNode.removeChild(tempDiv);
-            toast('Não consegui ler «' + file.name + '».', 'erro');
-          });
-        }
+          }
+          try { if (srcUrl && srcUrl.indexOf('blob:') === 0) URL.revokeObjectURL(srcUrl); } catch (err) {}
+          atualizarFilaProc();
+          setTimeout(processarProximaFoto, 120);
+        }).catch(function () {
+          filaFotos.feitas++;
+          toast('Não consegui ler «' + file.name + '».', 'erro');
+          atualizarFilaProc();
+          setTimeout(processarProximaFoto, 120);
+        });
+      }
+    });
+  }
+
+  el('gFotos').addEventListener('change', function () {
+    var lista = Array.prototype.slice.call(this.files || []);
+    if (!lista.length) return;
+    /* nova seleção entra para o fim da fila; o contador mostra o total */
+    lista.forEach(function (file) {
+      filaFotos.lista.push({
+        file: file,
+        id: 'u_foto_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8)
       });
     });
+    if (!filaFotos.aCorrer) {
+      filaFotos.total = filaFotos.lista.length;
+      filaFotos.feitas = 0;
+      filaFotos.parada = false;
+      filaFotos.aCorrer = true;
+    } else {
+      filaFotos.total = filaFotos.feitas + filaFotos.lista.length;
+    }
+    this.value = '';
+    processarProximaFoto();
   });
 
   function atualizarContagemFotos() {
@@ -951,6 +1021,17 @@
       var id = c.dataset.cancelar;
       if (cancelados.has(id)) return;
       cancelados.add(id);
+      /* cartão único da fila sequencial: limpa o ecrã e avança para a seguinte */
+      var vez = el('fotoVez');
+      var cartaoVez = vez && !vez.hidden && vez.querySelector('.u-item-upload');
+      var dentroVez = !!(cartaoVez && cartaoVez.id === id);
+      if (dentroVez) {
+        filaFotos.feitas++;
+        atualizarFilaProc();
+        setTimeout(processarProximaFoto, 60);
+        toast('Fotografia saltada.', 'info');
+        return;
+      }
       var d = el(id);
       if (d) { d.remove(); try { URL.revokeObjectURL(d.querySelector('img') && d.querySelector('img').src); } catch (err) {} }
       toast('Carregamento cancelado.', 'info');

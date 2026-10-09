@@ -178,6 +178,17 @@
     </label>
     <p class="contagem" id="contagemFotos">0 fotografias</p>
 
+    <!-- progresso do processamento sequencial (um cartão de cada vez) -->
+    <div class="fila-proc" id="filaProc" hidden>
+      <div class="fila-proc-topo">
+        <span id="filaProcTxt">A processar 0/0…</span>
+        <button type="button" class="btn-micro" id="filaProcCancelar" title="Parar o processamento das restantes">Parar</button>
+      </div>
+      <div class="u-prog-bar-wrap"><div class="u-prog-bar-fill" id="filaProcBar" style="width:0%"></div></div>
+    </div>
+
+    <div class="foto-vez" id="fotoVez" hidden></div>
+
     <!-- Controles inteligentes de metadata EXIF e ordenação das fotos -->
     <div class="painel-ordem-fotos" id="painelOrdemFotos" hidden>
       <div class="linha-info-meta">

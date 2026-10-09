@@ -589,6 +589,28 @@ label {
 .solta:hover { border-color: var(--gold); color: var(--gold); }
 .solta input { display: none; }
 .contagem { font-size: 13.5px; color: var(--suave); margin: 14px 0 12px; }
+
+/* progresso do processamento sequencial (um cartão de cada vez) */
+.fila-proc {
+  background: #fff; border: 1px solid var(--linha); border-radius: 12px;
+  padding: 12px 14px; margin: 0 0 12px;
+}
+.fila-proc-topo {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; font-size: 13.5px; font-weight: 600; margin-bottom: 8px;
+}
+.fila-proc .u-prog-bar-wrap {
+  width: 100%; height: 7px; background: #efece4;
+}
+.foto-vez { margin: 0 0 12px; }
+.foto-vez .u-item-upload {
+  max-width: 240px; height: 160px; aspect-ratio: auto;
+}
+.foto-vez .u-foto-nome {
+  margin-top: 8px; font-size: 12.5px; color: var(--suave);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 240px;
+}
 .miniaturas { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }
 .miniaturas img { width: 100%; height: 84px; object-fit: cover; border-radius: 8px; }
 
