@@ -18,7 +18,7 @@ const path = require('path');
 const crypto = require('crypto');
 const sharp = require('sharp');
 const exifr = require('exifr');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, DeleteObjectCommand, DeleteObjectsCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const mysql = require('mysql2/promise');
 
 const BASE = __dirname;
@@ -651,6 +651,69 @@ async function processarEGuardarImagem(dataUrl, pastaRelativa, nomeSemExt) {
   return `/${pastaRelativa}/${nomeSemExt}.jpg`.replace(/\/+/g, '/');
 }
 
+/* Extrai a chave (key) do objeto no bucket R2 a partir da URL guardada.
+   As fotos são guardadas como `fotos/<slug>/...` e as capas como `capas/...`,
+   por isso só se devolve a chave quando ela aponta para um desses prefixos —
+   nunca se apaga nada fora deles por acidente. */
+function r2KeyFromUrl(url) {
+  const u = String(url || '').split('?')[0].split('#')[0].trim();
+  if (!u) return null;
+  let caminho = '';
+  if (/^https?:\/\//i.test(u)) {
+    try {
+      caminho = decodeURIComponent(new URL(u).pathname).replace(/^\/+/, '');
+    } catch (e) { return null; }
+  } else {
+    caminho = decodeURIComponent(u).replace(/^\/+/, '');
+  }
+  const m = caminho.match(/(fotos\/.+|capas\/.+)$/);
+  const key = m ? m[1] : caminho;
+  if (!/^(fotos|capas)\//.test(key)) return null;
+  return key;
+}
+
+/* Apaga UM objeto do R2 a partir da URL guardada. Nunca lança: se o R2 não
+   estiver configurado ou falhar, regista o aviso e o pedido continua. */
+async function apagarR2Url(url) {
+  const key = r2KeyFromUrl(url);
+  if (!key || !r2Client || !r2Bucket) return false;
+  try {
+    await r2Client.send(new DeleteObjectCommand({ Bucket: r2Bucket, Key: key }));
+    return true;
+  } catch (e) {
+    console.warn('Aviso R2 (apagar objeto):', key, '-', e.message);
+    return false;
+  }
+}
+
+/* Apaga TODOS os objetos do R2 sob um prefixo (ex.: `fotos/<slug>/`).
+   Pagina a listagem e apaga em lotes de 1000. Nunca lança. */
+async function apagarR2Prefixo(prefixo) {
+  if (!prefixo || !r2Client || !r2Bucket) return 0;
+  let apagadas = 0;
+  let token = undefined;
+  try {
+    for (;;) {
+      const lista = await r2Client.send(new ListObjectsV2Command({
+        Bucket: r2Bucket, Prefix: prefixo, ContinuationToken: token, MaxKeys: 1000
+      }));
+      const chaves = (lista.Contents || []).map(o => o && o.Key).filter(Boolean);
+      if (chaves.length) {
+        await r2Client.send(new DeleteObjectsCommand({
+          Bucket: r2Bucket,
+          Delete: { Objects: chaves.map(Key => ({ Key })), Quiet: true }
+        }));
+        apagadas += chaves.length;
+      }
+      if (lista.IsTruncated) token = lista.NextContinuationToken;
+      else break;
+    }
+  } catch (e) {
+    console.warn('Aviso R2 (apagar prefixo):', prefixo, '-', e.message);
+  }
+  return apagadas;
+}
+
 /* mantém o nome original do ficheiro (IMG_4286.JPG) para a lista de download */
 function nomeOriginalSeguro(nome) {
   return path.basename(String(nome || '').replace(/\\/g, '/'))
@@ -1223,6 +1286,9 @@ api.delete('/galerias/:id', async (req, res) => {
   }
   try { fs.rmSync(path.join(FOTOS, g.slug), { recursive: true, force: true }); } catch (e) {}
   try { if (g.capa && g.capa.startsWith('/capas/')) fs.rmSync(path.join(CAPAS, path.basename(g.capa)), { force: true }); } catch (e) {}
+  /* limpa também o R2: todas as fotos do prefixo + a capa (nunca bloqueia) */
+  try { await apagarR2Prefixo('fotos/' + g.slug + '/'); } catch (e) {}
+  try { if (g.capa) await apagarR2Url(g.capa); } catch (e) {}
   res.json({ ok: true });
 });
 
@@ -1324,19 +1390,23 @@ api.put('/galerias/:id/ordenar', async (req, res) => {
   res.json(publicaGaleria(g));
 });
 
-api.delete('/galerias/:id/fotos', (req, res) => {
+api.delete('/galerias/:id/fotos', async (req, res) => {
   const g = galerias.find(x => x.id === req.params.id);
   if (!g) return res.status(404).json({ erro: 'Galeria inexistente.' });
+  const antigas = Array.isArray(g.fotos) ? g.fotos.slice() : [];
   g.fotos = [];
   g.fotosMeta = {};
   tocarGaleria(g);
   guardarGalerias();
   try { fs.rmSync(path.join(FOTOS, g.slug), { recursive: true, force: true }); } catch (e) {}
+  /* limpa também o R2 (URLs antigas + varrimento do prefixo, nunca bloqueia) */
+  for (const u of antigas) { try { await apagarR2Url(u); } catch (e) {} }
+  try { await apagarR2Prefixo('fotos/' + g.slug + '/'); } catch (e) {}
   res.json(publicaGaleria(g));
 });
 
 /* elimina UMA fotografia da galeria (usado pelo X nas miniaturas em edição) */
-api.delete('/galerias/:id/foto', (req, res) => {
+api.delete('/galerias/:id/foto', async (req, res) => {
   const g = galerias.find(x => x.id === req.params.id);
   if (!g) return res.status(404).json({ erro: 'Galeria inexistente.' });
   const url = String((req.body && (req.body.url || req.body.foto)) || '').trim();
@@ -1353,6 +1423,8 @@ api.delete('/galerias/:id/foto', (req, res) => {
     const localPath = path.join(DADOS, url.replace(/^\/+/, ''));
     if (localPath.indexOf(FOTOS) === 0 && fs.existsSync(localPath)) fs.rmSync(localPath, { force: true });
   } catch (e) {}
+  /* limpa também o objeto no R2 (nunca bloqueia) */
+  try { await apagarR2Url(url); } catch (e) {}
   tocarGaleria(g);
   guardarGalerias();
   res.json(publicaGaleria(g));
