@@ -525,10 +525,12 @@
         if (finalP >= 1) {
           finalP = 1;
           clearInterval(finTimer);
+          /* a pré-visualização usa sempre a imagem final comprimida DESTA foto
+             (nunca o blob de outra): a miniatura fica igual à foto guardada */
           try { URL.revokeObjectURL(blobUrl); } catch (err) {}
           callbackProgresso(1, compressedBase64, true);
         } else {
-          callbackProgresso(finalP, blobUrl, false);
+          callbackProgresso(finalP, compressedBase64 || blobUrl, false);
         }
       }, 30);
     }
@@ -820,9 +822,10 @@
               cancelados.delete(idUnico);
               return;
             }
-            tempDiv.classList.remove('u-carregando');
-            tempDiv.classList.add('u-concluido');
-            if (txtEl) txtEl.innerHTML = '<span class="u-prog-sucesso">✓</span>';
+            /* a foto passa a pendente: remove-se o cartão temporário e
+               redesenha-se a lista — é aí que nasce o X (data-rmpend) */
+            if (tempDiv.parentNode) tempDiv.parentNode.removeChild(tempDiv);
+            try { if (srcUrl && srcUrl.indexOf('blob:') === 0) URL.revokeObjectURL(srcUrl); } catch (err) {}
             actual.fotos.push({
               nome: file.name,
               dados: srcUrl,
@@ -832,6 +835,9 @@
               timestamp: meta.timestamp
             });
             ordenarFotosActual(actual.ordemFotos || 'captura');
+          }).catch(function () {
+            if (tempDiv.parentNode) tempDiv.parentNode.removeChild(tempDiv);
+            toast('Não consegui ler «' + file.name + '».', 'erro');
           });
         }
       });
@@ -850,10 +856,15 @@
     var container = el('miniaturas');
     /* preservar cartões ainda em processamento — innerHTML abaixo os apagaria */
     var carregando = Array.prototype.slice.call(container.querySelectorAll('.u-carregando'));
-    carregando.forEach(function (d) { if (d.parentNode) d.parentNode.removeChild(d); });
+    var idsCarregando = {};
+    carregando.forEach(function (d) {
+      if (d.id) idsCarregando[d.id] = true;
+      if (d.parentNode) d.parentNode.removeChild(d);
+    });
     container.innerHTML =
-      actual.existentes.map(function (f) {
-        return '<div class="u-item-upload u-concluido"><img src="' + esc(f) + '" alt="Fotografia da galeria"></div>';
+      actual.existentes.map(function (f, j) {
+        return '<div class="u-item-upload u-concluido"><img src="' + esc(f) + '" alt="Fotografia da galeria">' +
+          '<button type="button" class="u-remover" data-rmexist="' + j + '" title="Eliminar esta fotografia da galeria" aria-label="Eliminar fotografia ' + (j + 1) + ' da galeria">✕</button></div>';
       }).join('') +
       actual.fotos.map(function (f, i) {
         var metaTag = f.horaFormatada
@@ -862,12 +873,60 @@
         return '<div class="u-item-upload u-concluido"><img src="' + f.dados + '" alt="' + esc(f.nome) + '">' + metaTag +
           '<button type="button" class="u-remover" data-rmpend="' + i + '" title="Não carregar esta fotografia" aria-label="Não carregar ' + esc(f.nome) + '">✕</button></div>';
       }).join('');
-    /* reanexar os cartões em processamento ao final */
-    carregando.forEach(function (d) { container.appendChild(d); });
+    /* reanexar os cartões em processamento ao final (sem duplicar os já
+       convertidos em miniatura concluída) */
+    carregando.forEach(function (d) {
+      if (d.id && idsCarregando[d.id] && !container.querySelector('#' + d.id)) container.appendChild(d);
+    });
   }
 
-  /* tirar uma fotografia pendente antes de carregar para a galeria */
+  /* tirar uma fotografia já guardada na galeria (modo edição) */
+  function removerExistente(j, btn) {
+    if (!(j >= 0 && j < actual.existentes.length)) return;
+    var url = actual.existentes[j];
+    var nome = pathNome(url);
+    var confirmar = function () {
+      if (!actual.id) {
+        actual.existentes.splice(j, 1);
+        desenharMiniaturas();
+        toast('Fotografia eliminada da galeria.', 'ok');
+        return;
+      }
+      if (btn) { btn.disabled = true; }
+      api('/galerias/' + encodeURIComponent(actual.id) + '/foto', {
+        method: 'DELETE', body: { url: url }
+      }).then(function (g) {
+        actual.existentes = g ? (g.fotos || []) : actual.existentes.filter(function (f) { return f !== url; });
+        desenharMiniaturas();
+        toast('Fotografia eliminada da galeria.', 'ok');
+      }).catch(function (e) {
+        if (btn) { btn.disabled = false; }
+        toast(e.message || 'Não consegui eliminar a fotografia.', 'erro');
+      });
+    };
+    if (typeof confirmar === 'function') {
+      confirmar('Eliminar fotografia', 'Eliminar «' + nome + '» desta galeria?', 'Eliminar', true).then(function (ok) {
+        if (ok) confirmar();
+      });
+    } else if (typeof perguntar === 'function') {
+      perguntar('Eliminar fotografia', 'Eliminar «' + nome + '» desta galeria?', '', 'Eliminar').then(function (v) {
+        if (v !== null) confirmar();
+      });
+    } else {
+      confirmar();
+    }
+  }
+
+  /* tirar uma fotografia pendente antes de carregar para a galeria,
+     ou eliminar uma fotografia já guardada (modo edição) */
   el('miniaturas').addEventListener('click', function (ev) {
+    var e = ev.target.closest('[data-rmexist]');
+    if (e) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      removerExistente(parseInt(e.dataset.rmexist, 10), e);
+      return;
+    }
     var b = ev.target.closest('[data-rmpend]');
     if (b) {
       ev.preventDefault();

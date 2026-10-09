@@ -265,9 +265,12 @@
       grelhaEl.style.maxWidth = '1440px';
     }
 
+    /* A ordem visual é EXATAMENTE a ordem de G.fotos (índice = posição):
+       sem reordenação no cliente, sem masonry por colunas. Assim o clique
+       (data-i) abre sempre a foto que está por baixo do dedo. */
     grelhaEl.innerHTML = (G.fotos || []).map(function (f, i) {
-      return '<figure class="foto" data-i="' + i + '">' +
-        '<img src="' + f + '" alt="Fotografia ' + (i + 1) + '" loading="lazy">' +
+      return '<figure class="foto" data-i="' + i + '" data-url="' + esc(f) + '">' +
+        '<img src="' + esc(f) + '" alt="Fotografia ' + (i + 1) + '" loading="lazy" draggable="false">' +
         '<button class="sel" type="button" data-sel="' + i + '" title="Selecionar fotografia">' +
           '<span class="c">♥</span> Selecionar</button>' +
         '<span class="liga">♥</span>' +
@@ -613,9 +616,24 @@
 
   el('grelha').addEventListener('click', function (ev) {
     var s = ev.target.closest('[data-sel]');
-    if (s) { ev.preventDefault(); ev.stopPropagation(); alternar(G.fotos[+s.dataset.sel]); return; }
+    if (s) {
+      ev.preventDefault(); ev.stopPropagation();
+      var si = +s.dataset.sel;
+      var sUrl = (s.closest('[data-url]') || {}).getAttribute
+        ? s.closest('[data-url]').getAttribute('data-url')
+        : null;
+      var sIdx = G.fotos.indexOf(sUrl);
+      alternar(sIdx >= 0 ? G.fotos[sIdx] : G.fotos[si]);
+      return;
+    }
     var f = ev.target.closest('[data-i]');
-    if (f) abrirVisor(+f.dataset.i);
+    if (f) {
+      /* O índice pode vir de um HTML antigo em cache: confirma-se pela URL
+         gravada no próprio cartão, para abrir sempre a foto clicada. */
+      var url = f.getAttribute ? f.getAttribute('data-url') : null;
+      var idx = url ? G.fotos.indexOf(url) : -1;
+      abrirVisor(idx >= 0 ? idx : (+f.dataset.i));
+    }
   });
 
   if (el('vFecharTopo')) el('vFecharTopo').addEventListener('click', fecharVisor);

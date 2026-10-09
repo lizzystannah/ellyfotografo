@@ -1328,9 +1328,33 @@ api.delete('/galerias/:id/fotos', (req, res) => {
   const g = galerias.find(x => x.id === req.params.id);
   if (!g) return res.status(404).json({ erro: 'Galeria inexistente.' });
   g.fotos = [];
+  g.fotosMeta = {};
   tocarGaleria(g);
   guardarGalerias();
   try { fs.rmSync(path.join(FOTOS, g.slug), { recursive: true, force: true }); } catch (e) {}
+  res.json(publicaGaleria(g));
+});
+
+/* elimina UMA fotografia da galeria (usado pelo X nas miniaturas em edição) */
+api.delete('/galerias/:id/foto', (req, res) => {
+  const g = galerias.find(x => x.id === req.params.id);
+  if (!g) return res.status(404).json({ erro: 'Galeria inexistente.' });
+  const url = String((req.body && (req.body.url || req.body.foto)) || '').trim();
+  if (!url) return res.status(400).json({ erro: 'Falta a fotografia a eliminar.' });
+  const i = g.fotos.indexOf(url);
+  if (i < 0) return res.status(404).json({ erro: 'Fotografia não encontrada.' });
+  g.fotos.splice(i, 1);
+  if (g.fotosMeta && g.fotosMeta[url]) delete g.fotosMeta[url];
+  /* remove também da seleção do cliente, se lá estiver */
+  if (g.selecao && Array.isArray(g.selecao.fotos)) {
+    g.selecao.fotos = g.selecao.fotos.filter(f => f !== url);
+  }
+  try {
+    const localPath = path.join(DADOS, url.replace(/^\/+/, ''));
+    if (localPath.indexOf(FOTOS) === 0 && fs.existsSync(localPath)) fs.rmSync(localPath, { force: true });
+  } catch (e) {}
+  tocarGaleria(g);
+  guardarGalerias();
   res.json(publicaGaleria(g));
 });
 

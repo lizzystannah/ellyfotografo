@@ -1107,9 +1107,13 @@ label {
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
-  z-index: 3;
+  /* acima do overlay de progresso (z 10): o X fica sempre nítido e clicável,
+     também durante o carregamento */
+  z-index: 11;
+  box-shadow: 0 2px 8px rgba(0,0,0,.45);
+  transition: background .15s ease, transform .15s ease;
 }
-.u-remover:hover { background: #b23b3b; }
+.u-remover:hover { background: #b23b3b; transform: scale(1.1); }
 
 /* Modal de detalhe: cabeçalho e botões de ordenação */
 .det-cabecalho-fotos {
