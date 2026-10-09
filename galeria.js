@@ -180,6 +180,9 @@
     document.body.classList.add('e-galeria');
 
     document.title = G.nome + ' · Elly Fotógrafo';
+    /* o nome da galeria aparece no centro com o estilo dourado do eyebrow;
+       o h1 antigo fica escondido mas atualizado (acessibilidade/título) */
+    if (el('capaNome')) el('capaNome').textContent = G.nome;
     el('titulo').textContent = G.nome;
 
     /* base da capa: cliente + nº de fotos (sem disponibilidade) */

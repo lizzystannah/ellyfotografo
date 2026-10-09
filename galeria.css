@@ -85,10 +85,10 @@ button { font: inherit; }
 /* ================= CAPA ================= */
 .capa {
   position: relative;
-  /* capa horizontal com mais presença: mais alta no computador */
-  height: 72vh;
-  min-height: 440px;
-  max-height: 720px;
+  /* capa horizontal com presença máxima: quase ecrã cheio no computador */
+  height: 88vh;
+  min-height: 540px;
+  max-height: 900px;
   overflow: hidden;
   background: #141418;
 }
@@ -105,6 +105,12 @@ button { font: inherit; }
   font-family: "Playfair Display", serif; font-weight: 600;
   font-size: clamp(26px, 5vw, 46px); line-height: 1.15; margin-top: 8px;
   text-shadow: 0 4px 26px rgba(0,0,0,.5);
+}
+/* o nome da galeria usa exatamente o estilo dourado do antigo "Galeria de seleção" */
+.capa-nome-eyebrow {
+  font-size: 15px;
+  letter-spacing: .28em;
+  text-shadow: 0 3px 18px rgba(0,0,0,.55);
 }
 .capa-base {
   position: absolute; left: 0; right: 0; bottom: 0;
@@ -123,6 +129,7 @@ button { font: inherit; }
 @media (max-height: 700px) {
   .capa-txt { top: 36%; }
   .capa-txt h1 { font-size: clamp(20px, 5vw, 28px); margin-top: 4px; }
+  .capa-nome-eyebrow { font-size: 12.5px; letter-spacing: .22em; }
   .capa-base { padding-bottom: 54px; }
   .capa-base .eyebrow { font-size: 10px; margin-bottom: 4px; }
   .capa-cliente { font-size: 17px; }
@@ -669,9 +676,9 @@ button { font: inherit; }
 /* ================= MOBILE ================= */
 @media (max-width: 760px) {
   .capa {
-    height: 52vh;
-    min-height: 320px;
-    max-height: 460px;
+    height: 62vh;
+    min-height: 380px;
+    max-height: 560px;
   }
   .capa-txt h1 { font-size: clamp(22px, 6.5vw, 32px); margin-top: 6px; }
   .capa-sub { font-size: 13px; margin-top: 6px; }
