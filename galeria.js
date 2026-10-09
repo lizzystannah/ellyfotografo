@@ -282,8 +282,11 @@
        (por colunas) difere da ordem do array — mas o clique abre sempre
        a foto que está por baixo do dedo. */
     grelhaEl.innerHTML = (G.fotos || []).map(function (f, i) {
+      /* nome original limpo no alt (sem o sufixo único da URL guardada) */
+      var metaG = (G.fotosMeta || {})[f] || {};
+      var nomeG = metaG.nomeOriginal || decodeURIComponent(String(f).split('/').pop());
       return '<figure class="foto" data-i="' + i + '" data-url="' + esc(f) + '">' +
-        '<img src="' + esc(f) + '" alt="Fotografia ' + (i + 1) + '" loading="lazy" draggable="false">' +
+        '<img src="' + esc(f) + '" alt="' + esc(nomeG) + '" loading="lazy" draggable="false">' +
         '<button class="sel" type="button" data-sel="' + i + '" title="Selecionar fotografia">' +
           '<span class="c">♥</span> Selecionar</button>' +
         '<span class="liga">♥</span>' +

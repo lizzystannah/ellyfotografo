@@ -464,6 +464,8 @@
     actual.slug = g ? g.slug : null;
     actual.expiraEm = g ? g.expiraEm : null;
     actual.existentes = g ? (g.fotos || []) : [];
+    /* metas para mostrar o NOME ORIGINAL nas miniaturas (sem o sufixo único) */
+    actual.metasExistentes = (g && g.fotosMeta) || {};
     actual.cliente = g ? g.cliente : null;
     actual.ordemFotos = (g && g.ordemFotos) || 'captura';
 
@@ -863,7 +865,10 @@
     });
     container.innerHTML =
       actual.existentes.map(function (f, j) {
-        return '<div class="u-item-upload u-concluido"><img src="' + esc(f) + '" alt="Fotografia da galeria">' +
+        /* nome original limpo (ex.: IMG_4286.JPG) em vez do basename com sufixo */
+        var metaEx = (actual.metasExistentes || {})[f] || {};
+        var nomeEx = metaEx.nomeOriginal || pathNome(f);
+        return '<div class="u-item-upload u-concluido"><img src="' + esc(f) + '" alt="' + esc(nomeEx) + '" title="' + esc(nomeEx) + '">' +
           '<button type="button" class="u-remover" data-rmexist="' + j + '" title="Eliminar esta fotografia da galeria" aria-label="Eliminar fotografia ' + (j + 1) + ' da galeria">✕</button></div>';
       }).join('') +
       actual.fotos.map(function (f, i) {

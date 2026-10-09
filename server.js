@@ -1082,6 +1082,7 @@ pub.get('/galeria/:slug', async (req, res) => {
   res.json(Object.assign(base, {
     requerAcesso: false,
     fotos: g.fotos,
+    fotosMeta: g.fotosMeta || {},
     cliente: c ? c.nome : '',
     limite: c ? c.fotosContratadas : '',
     precoExtra: c ? c.precoExtra : '',
@@ -1470,6 +1471,7 @@ api.get('/galerias/:id/selecao', async (req, res) => {
   const limite = c ? parseInt(c.fotosContratadas, 10) || 0 : 0;
   const preco = c ? parseInt(c.precoExtra, 10) || 0 : 0;
   const extras = Math.max(0, s.fotos.length - limite);
+  const metaSel = g.fotosMeta || {};
   res.json({
     fotos: s.fotos,
     finalizada: !!s.finalizada,
@@ -1480,7 +1482,10 @@ api.get('/galerias/:id/selecao', async (req, res) => {
     preco,
     extras,
     valorExtra: extras * preco,
-    nomes: s.fotos.map(f => path.basename(f))
+    /* o .selpics tem de trazer os NOMES ORIGINAIS (ex.: IMG_4286.JPG) para a
+       separação funcionar no computador — o basename da URL tem sufixo único
+       (ex.: IMG_4286_mf3x9a2k_0.jpg) e nenhum ficheiro local tem esse nome */
+    nomes: s.fotos.map(f => (metaSel[f] && metaSel[f].nomeOriginal) || path.basename(f))
   });
 });
 
