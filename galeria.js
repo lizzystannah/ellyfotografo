@@ -100,6 +100,12 @@
     var h = {};
     if (whats) h['X-Gal-Acesso'] = whats;
     if (senha) h['X-Gal-Senha'] = senha;
+    /* admin logado no painel ("Ver como cliente"): envia o token de sessão
+       para entrar direto, sem palavra-passe */
+    try {
+      var sess = JSON.parse(localStorage.getItem('elly_sessao') || 'null');
+      if (sess && sess.token) h['Authorization'] = 'Bearer ' + sess.token;
+    } catch (e) {}
     return h;
   }
 

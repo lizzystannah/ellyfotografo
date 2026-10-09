@@ -1054,6 +1054,10 @@ function acharGaleriaPublica(req) {
 
 function acessoValido(g, req) {
   if (!g.privada) return true;
+  /* equipa (admin logado a ver como cliente): entra direto, sem palavra-passe */
+  const bruto = req.headers.authorization || '';
+  const token = bruto.replace(/^Bearer\s+/i, '').trim();
+  if (token && token.length >= 16 && sessoes.has(token)) return true;
   const c = clienteDe(g);
   const whatsCadastrado = c ? normalizarWhats(c.whatsapp) : '';
   const whatsInformado = normalizarWhats(req.headers['x-gal-acesso'] || req.headers['x-gal-whatsapp']);
