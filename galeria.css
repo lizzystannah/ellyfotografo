@@ -265,40 +265,27 @@ body.a-imprimir .resumo { visibility: hidden !important; }
 
 /* Grade: 3 ou 5 fotografias por FILA (ordem cronológica na horizontal).
    display:grid por linhas: 1-2-3 na primeira fila, 4-5-6 na seguinte, etc.
-   Cada miniatura tem altura fixa (cover elegante) para a fila ficar alinhada
-   sem espaços órfãos. O corte é SÓ na miniatura — no visor a foto abre
-   inteira. O clique (data-i/data-url) abre sempre a foto clicada. */
+   Cada foto aparece INTEIRA (sem cortes): a fila alinha-se pela foto mais
+   alta e as mais baixas ficam centradas verticalmente no seu espaço, sem
+   deformar nem cortar verticais. O clique (data-i/data-url) abre sempre
+   a foto clicada, inteira no visor. */
 .grelha.grelha-cols-3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  align-items: stretch;
+  align-items: start;
 }
 .grelha.grelha-cols-5 {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 10px;
-  align-items: stretch;
+  align-items: start;
 }
 @media (max-width: 680px) {
   .grelha.grelha-cols-3, .grelha.grelha-cols-5 { gap: 8px; padding: 12px 8px; }
 }
 .grelha.grelha-cols-3 .foto, .grelha.grelha-cols-5 .foto {
   margin: 0;
-  height: 100%;
-  min-height: 0;
-}
-.grelha.grelha-cols-3 .foto img {
-  height: clamp(140px, 22vw, 260px);
-  object-fit: cover;
-}
-.grelha.grelha-cols-5 .foto img {
-  height: clamp(110px, 15vw, 200px);
-  object-fit: cover;
-}
-@media (max-width: 680px) {
-  .grelha.grelha-cols-3 .foto img { height: clamp(110px, 30vw, 170px); }
-  .grelha.grelha-cols-5 .foto img { height: clamp(90px, 26vw, 140px); }
 }
 
 .foto {
