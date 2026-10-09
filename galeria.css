@@ -82,6 +82,73 @@ button { font: inherit; }
 .acesso .voltar { display: inline-block; margin-top: 20px; font-size: 13.5px; color: #9a9aa3; text-decoration: none; }
 .acesso .voltar:hover { color: var(--gold); }
 
+/* ============ ANTI-DOWNLOAD / ANTI-PRINT ============
+   Marca de água com o nome do cliente sobre grelha e visor; impressão sai
+   preta; imagens sem seleção/arrasto/menu. Dificulta, não impede Print
+   Screen do sistema nem foto com outro telemóvel. */
+body.e-galeria {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+/* marca de água repetida sobre cada foto da grelha */
+.grelha[data-marca] .foto::after {
+  content: attr(data-foto-marca);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.34);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 0 12px;
+  pointer-events: none;
+  z-index: 6;
+  text-shadow: 0 1px 8px rgba(0,0,0,.5);
+  transform: rotate(-18deg);
+}
+/* marca de água no visor (foto expandida) */
+.visor[data-marca] .vimg-container::after {
+  content: attr(data-visor-marca);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: clamp(22px, 5vw, 44px);
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 0 20px;
+  pointer-events: none;
+  z-index: 30;
+  text-shadow: 0 2px 14px rgba(0,0,0,.6);
+  transform: rotate(-18deg);
+}
+/* impressão / PDF do navegador: sai tudo preto */
+@media print {
+  body.e-galeria { background: #000 !important; }
+  body.e-galeria .app,
+  body.e-galeria .visor,
+  body.e-galeria .resumo { display: none !important; }
+  body.e-galeria::after {
+    content: "Conteúdo protegido — impressão desativada.";
+    display: block;
+    color: #fff;
+    text-align: center;
+    padding-top: 40vh;
+    font-size: 18px;
+  }
+}
+/* Ctrl+P apanhado a tempo: esconde tudo antes do diálogo */
+body.a-imprimir .app,
+body.a-imprimir .visor,
+body.a-imprimir .resumo { visibility: hidden !important; }
+
 /* ================= CAPA ================= */
 .capa {
   position: relative;
@@ -284,9 +351,14 @@ button { font: inherit; }
   aspect-ratio: auto;
   display: block;
   user-select: none;
+  -webkit-user-select: none;
   -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+  pointer-events: none;
   transition: transform .35s ease, filter .2s ease;
 }
+/* o cartão continua clicável (abrir/selecionar) mesmo com a img sem eventos */
+.foto { -webkit-touch-callout: none; }
 @media (hover: hover) { .foto:hover img { transform: scale(1.02); } }
 
 /* Botão de seleção reposicionado na base inferior da fotografia */

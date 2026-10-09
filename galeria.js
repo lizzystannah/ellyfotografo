@@ -37,6 +37,52 @@
   function preco() { return parseInt(G.precoExtra, 10) || 0; }
   function extras() { return limite() ? Math.max(0, escolhidas.length - limite()) : 0; }
 
+  /* ============ PROTEÇÃO ANTI-DOWNLOAD / ANTI-PRINT ============
+     Dificulta (não impede a 100%: Print Screen do sistema, DevTools e foto
+     com outro telemóvel não são bloqueáveis por nenhum site). */
+  (function protecao() {
+    /* menu de contexto (botão direito / toque longo) */
+    document.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
+    /* arrastar imagens para fora / gravar */
+    document.addEventListener('dragstart', function (ev) {
+      if (ev.target && ev.target.tagName === 'IMG') ev.preventDefault();
+    });
+    /* atalhos: Ctrl/Cmd+P (imprimir), Ctrl/Cmd+S (gravar), Ctrl/Cmd+U (código) */
+    document.addEventListener('keydown', function (ev) {
+      var mod = ev.ctrlKey || ev.metaKey;
+      if (!mod) return;
+      var k = (ev.key || '').toLowerCase();
+      if (k === 'p' || k === 's' || k === 'u') {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+    });
+    window.addEventListener('beforeprint', function () {
+      document.body.classList.add('a-imprimir');
+    });
+    window.addEventListener('afterprint', function () {
+      document.body.classList.remove('a-imprimir');
+    });
+  })();
+
+  /* marca de água com o nome do cliente sobre as fotos (grelha + visor) */
+  function aplicarMarcaAgua() {
+    var nome = (G && G.cliente) || '';
+    if (!nome) return;
+    var grelhaEl = el('grelha');
+    if (grelhaEl) {
+      grelhaEl.setAttribute('data-marca', nome);
+      var cartoes = grelhaEl.querySelectorAll('.foto');
+      for (var i = 0; i < cartoes.length; i++) cartoes[i].setAttribute('data-foto-marca', nome);
+    }
+    var visorEl = el('visor');
+    if (visorEl) {
+      visorEl.setAttribute('data-marca', nome);
+      var cont = el('vImgContainer');
+      if (cont) cont.setAttribute('data-visor-marca', nome);
+    }
+  }
+
   /* "Ver o site" é só para o fotógrafo: só aparece quando a galeria é aberta
      pelo painel ("Ver como cliente", que põe ?equipa=1 no link). O cliente,
      que abre o link puro, nunca vê o botão. */
@@ -209,6 +255,7 @@
     actualizarContador();
     aplicarEstadoFinal();
     iniciarControlesGrade();
+    aplicarMarcaAgua();
   }
 
   /* a ordem das fotos é definida no painel, no ato da criação — o cliente
@@ -293,6 +340,10 @@
       '</figure>';
     }).join('');
     marcarFotos();
+    if (G && G.cliente) {
+      var cartoes = grelhaEl.querySelectorAll('.foto');
+      for (var mi = 0; mi < cartoes.length; mi++) cartoes[mi].setAttribute('data-foto-marca', G.cliente);
+    }
   }
 
   /* ================= selecção ================= */
@@ -875,34 +926,8 @@
   el('rFechar').addEventListener('click', fecharResumo);
   el('rVoltar').addEventListener('click', fecharResumo);
 
-  /* ---- PDF ---- */
-  el('rPdf').addEventListener('click', function () {
-    var b = el('rPdf');
-    if (!escolhidas.length) { avisoResumo('Ainda não escolheste nenhuma fotografia.'); return; }
-    b.disabled = true; b.textContent = 'A gerar…';
-
-    var L = limite(), P = preco(), ex = extras();
-    window.PDF.gerar({
-      titulo: G.nome,
-      subtitulo: 'Elly Fotógrafo · seleção de fotografias',
-      linhas: [
-        'Cliente: ' + (G.cliente || '—'),
-        'Data: ' + new Date().toLocaleDateString('pt-PT'),
-        'Total na galeria: ' + G.total,
-        'Escolhidas: ' + escolhidas.length,
-        'Incluídas no contrato: ' + (L ? L : '—'),
-        'Fotografias extra: ' + ex + (P ? '  (' + fmt(ex * P) + ' Kz)' : ''),
-        'Link: ' + location.href
-      ],
-      fotos: escolhidas
-    }).then(function (bytes) {
-      window.PDF.baixar(bytes, 'selecao-' + slug + '.pdf');
-    }).catch(function (e) {
-      avisoResumo(e.message || 'Não consegui gerar o PDF.');
-    }).then(function () {
-      b.disabled = false; b.textContent = 'Descarregar PDF';
-    });
-  });
+  /* ---- PDF removido (anti-download): o cliente escolhe, mas não descarrega.
+     Sem botão, sem envio de imagens para gerar ficheiro. ---- */
 
   /* ---- concluir ---- */
   el('rConcluir').addEventListener('click', function () {
@@ -927,8 +952,7 @@
     var texto = 'Olá! Terminei a seleção da galeria "' + G.nome + '".\n' +
       'Escolhidas: ' + escolhidas.length + ' de ' + G.total + '\n' +
       (L ? 'Contratadas: ' + L + ' · extras: ' + ex + ' (' + fmt(ex * P) + ' Kz)\n' : '') +
-      'Link: ' + location.href + '\n' +
-      'Envio também o PDF com as fotografias escolhidas.';
+      'Link: ' + location.href;
     window.open('https://wa.me/' + digitos(G.whatsappFotografo) +
       '?text=' + encodeURIComponent(texto), '_blank', 'noopener');
   }
