@@ -641,6 +641,11 @@ label {
   z-index: 10;
 }
 
+.u-item-upload.u-carregando .u-prog-overlay {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none; /* deixa o ✕ clicável por cima do overlay */
+}
 .u-item-upload.u-concluido .u-prog-overlay {
   opacity: 0;
   visibility: hidden;

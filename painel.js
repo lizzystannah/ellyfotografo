@@ -774,6 +774,7 @@
   }
 
   /* passo 2 → fotos da galeria com leitura de EXIF, metadados e animação */
+  var cancelados = new Set();
   el('gFotos').addEventListener('change', function () {
     var lista = Array.prototype.slice.call(this.files || []);
     if (!lista.length) return;
@@ -788,6 +789,7 @@
       tempDiv.id = idUnico;
       tempDiv.innerHTML = [
         '<img src="" alt="' + esc(file.name) + '">',
+        '<button type="button" class="u-remover" data-cancelar="' + idUnico + '" title="Não carregar esta fotografia" aria-label="Cancelar carregamento de ' + esc(file.name) + '">✕</button>',
         '<div class="u-prog-overlay">',
         '  <span class="u-prog-num">0%</span>',
         '  <div class="u-prog-bar-wrap"><div class="u-prog-bar-fill" style="width:0%"></div></div>',
@@ -814,6 +816,10 @@
 
         if (prog >= 1) {
           metaPromise.then(function (meta) {
+            if (cancelados.has(idUnico)) {
+              cancelados.delete(idUnico);
+              return;
+            }
             tempDiv.classList.remove('u-carregando');
             tempDiv.classList.add('u-concluido');
             if (txtEl) txtEl.innerHTML = '<span class="u-prog-sucesso">✓</span>';
@@ -842,6 +848,9 @@
     atualizarContagemFotos();
     atualizarPainelMetadados();
     var container = el('miniaturas');
+    /* preservar cartões ainda em processamento — innerHTML abaixo os apagaria */
+    var carregando = Array.prototype.slice.call(container.querySelectorAll('.u-carregando'));
+    carregando.forEach(function (d) { if (d.parentNode) d.parentNode.removeChild(d); });
     container.innerHTML =
       actual.existentes.map(function (f) {
         return '<div class="u-item-upload u-concluido"><img src="' + esc(f) + '" alt="Fotografia da galeria"></div>';
@@ -853,19 +862,35 @@
         return '<div class="u-item-upload u-concluido"><img src="' + f.dados + '" alt="' + esc(f.nome) + '">' + metaTag +
           '<button type="button" class="u-remover" data-rmpend="' + i + '" title="Não carregar esta fotografia" aria-label="Não carregar ' + esc(f.nome) + '">✕</button></div>';
       }).join('');
+    /* reanexar os cartões em processamento ao final */
+    carregando.forEach(function (d) { container.appendChild(d); });
   }
 
   /* tirar uma fotografia pendente antes de carregar para a galeria */
   el('miniaturas').addEventListener('click', function (ev) {
     var b = ev.target.closest('[data-rmpend]');
-    if (!b) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    var i = parseInt(b.dataset.rmpend, 10);
-    if (!(i >= 0) || i >= actual.fotos.length) return;
-    actual.fotos.splice(i, 1);
-    desenharMiniaturas();
-    toast('Fotografia retirada da lista de carregamento.', 'info');
+    if (b) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      var i = parseInt(b.dataset.rmpend, 10);
+      if (i >= 0 && i < actual.fotos.length) {
+        actual.fotos.splice(i, 1);
+        desenharMiniaturas();
+        toast('Fotografia retirada da lista de carregamento.', 'info');
+      }
+      return;
+    }
+    var c = ev.target.closest('[data-cancelar]');
+    if (c) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      var id = c.dataset.cancelar;
+      if (cancelados.has(id)) return;
+      cancelados.add(id);
+      var d = el(id);
+      if (d) { d.remove(); try { URL.revokeObjectURL(d.querySelector('img') && d.querySelector('img').src); } catch (err) {} }
+      toast('Carregamento cancelado.', 'info');
+    }
   });
 
   /* passo 3 → público/privado */
