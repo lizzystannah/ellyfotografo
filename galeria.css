@@ -83,51 +83,13 @@ button { font: inherit; }
 .acesso .voltar:hover { color: var(--gold); }
 
 /* ============ ANTI-DOWNLOAD / ANTI-PRINT ============
-   Marca de água com o nome do cliente sobre grelha e visor; impressão sai
-   preta; imagens sem seleção/arrasto/menu. Dificulta, não impede Print
-   Screen do sistema nem foto com outro telemóvel. */
+   Botão direito e arrasto bloqueados APENAS na foto expandida (visor);
+   impressão sai preta. Dificulta, não impede Print Screen do sistema
+   nem foto com outro telemóvel. */
 body.e-galeria {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-}
-/* marca de água repetida sobre cada foto da grelha */
-.grelha[data-marca] .foto::after {
-  content: attr(data-foto-marca);
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: rgba(255, 255, 255, 0.34);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  text-align: center;
-  padding: 0 12px;
-  pointer-events: none;
-  z-index: 6;
-  text-shadow: 0 1px 8px rgba(0,0,0,.5);
-  transform: rotate(-18deg);
-}
-/* marca de água no visor (foto expandida) */
-.visor[data-marca] .vimg-container::after {
-  content: attr(data-visor-marca);
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: rgba(255, 255, 255, 0.4);
-  font-size: clamp(22px, 5vw, 44px);
-  font-weight: 700;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  text-align: center;
-  padding: 0 20px;
-  pointer-events: none;
-  z-index: 30;
-  text-shadow: 0 2px 14px rgba(0,0,0,.6);
-  transform: rotate(-18deg);
 }
 /* impressão / PDF do navegador: sai tudo preto */
 @media print {

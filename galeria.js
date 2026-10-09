@@ -41,11 +41,17 @@
      Dificulta (não impede a 100%: Print Screen do sistema, DevTools e foto
      com outro telemóvel não são bloqueáveis por nenhum site). */
   (function protecao() {
-    /* menu de contexto (botão direito / toque longo) */
-    document.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
-    /* arrastar imagens para fora / gravar */
+    /* botão direito / toque longo: bloqueado APENAS na foto expandida
+       (visor). Nas miniaturas da grelha fica livre — quem descarregar dali
+       leva só a miniatura pequena. */
+    document.addEventListener('contextmenu', function (ev) {
+      var noVisor = ev.target && ev.target.closest ? ev.target.closest('#visor') : null;
+      if (noVisor) ev.preventDefault();
+    });
+    /* arrastar a foto expandida para fora / gravar */
     document.addEventListener('dragstart', function (ev) {
-      if (ev.target && ev.target.tagName === 'IMG') ev.preventDefault();
+      var noVisor = ev.target && ev.target.closest ? ev.target.closest('#visor') : null;
+      if (noVisor) ev.preventDefault();
     });
     /* atalhos: Ctrl/Cmd+P (imprimir), Ctrl/Cmd+S (gravar), Ctrl/Cmd+U (código) */
     document.addEventListener('keydown', function (ev) {
@@ -65,23 +71,7 @@
     });
   })();
 
-  /* marca de água com o nome do cliente sobre as fotos (grelha + visor) */
-  function aplicarMarcaAgua() {
-    var nome = (G && G.cliente) || '';
-    if (!nome) return;
-    var grelhaEl = el('grelha');
-    if (grelhaEl) {
-      grelhaEl.setAttribute('data-marca', nome);
-      var cartoes = grelhaEl.querySelectorAll('.foto');
-      for (var i = 0; i < cartoes.length; i++) cartoes[i].setAttribute('data-foto-marca', nome);
-    }
-    var visorEl = el('visor');
-    if (visorEl) {
-      visorEl.setAttribute('data-marca', nome);
-      var cont = el('vImgContainer');
-      if (cont) cont.setAttribute('data-visor-marca', nome);
-    }
-  }
+  /* marca de água DESATIVADA por opção: sem texto sobre as fotos. */
 
   /* "Ver o site" é só para o fotógrafo: só aparece quando a galeria é aberta
      pelo painel ("Ver como cliente", que põe ?equipa=1 no link). O cliente,
@@ -255,7 +245,6 @@
     actualizarContador();
     aplicarEstadoFinal();
     iniciarControlesGrade();
-    aplicarMarcaAgua();
   }
 
   /* a ordem das fotos é definida no painel, no ato da criação — o cliente
@@ -340,10 +329,6 @@
       '</figure>';
     }).join('');
     marcarFotos();
-    if (G && G.cliente) {
-      var cartoes = grelhaEl.querySelectorAll('.foto');
-      for (var mi = 0; mi < cartoes.length; mi++) cartoes[mi].setAttribute('data-foto-marca', G.cliente);
-    }
   }
 
   /* ================= selecção ================= */

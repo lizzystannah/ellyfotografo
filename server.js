@@ -625,8 +625,9 @@ function guardaImagem(dataUrl, destino) {
 }
 
 /* Processa a imagem com compressão Sharp e faz upload para Cloudflare R2 ou guarda localmente.
-   Aceita data-URL (fluxo antigo) OU buffer direto (upload multipart do navegador). */
-async function processarEGuardarImagem(dataUrlOuBuffer, pastaRelativa, nomeSemExt) {
+   Aceita data-URL (fluxo antigo) OU buffer direto (upload multipart do navegador).
+   maxLado limita o lado maior (só fotos da galeria — a capa usa o padrão). */
+async function processarEGuardarImagem(dataUrlOuBuffer, pastaRelativa, nomeSemExt, maxLado) {
   let rawBuffer = null;
   if (Buffer.isBuffer(dataUrlOuBuffer)) {
     rawBuffer = dataUrlOuBuffer;
@@ -636,12 +637,15 @@ async function processarEGuardarImagem(dataUrlOuBuffer, pastaRelativa, nomeSemEx
     rawBuffer = Buffer.from(m[2], 'base64');
   }
 
-  // Compressão com Sharp (auto-orienta EXIF com .rotate() para preservar fotos verticais, Max 2200px, JPEG com qualidade 82%)
+  // Compressão com Sharp (auto-orienta EXIF com .rotate(), JPEG qualidade 82%).
+  // Nas fotos da galeria o lado maior é limitado pela qualidade escolhida
+  // no upload (900/1200/1500/2000, padrão 900); a capa mantém 2200px.
+  const lado = Math.max(400, Math.min(2200, parseInt(maxLado, 10) || 2200));
   let compressedBuffer = rawBuffer;
   try {
     compressedBuffer = await sharp(rawBuffer)
       .rotate()
-      .resize({ width: 2200, height: 2200, fit: 'inside', withoutEnlargement: true })
+      .resize({ width: lado, height: lado, fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 82, progressive: true })
       .toBuffer();
   } catch (e) {
@@ -1335,6 +1339,8 @@ api.post('/galerias/:id/fotos-lote', (req, res) => {
     const ficheiros = req.files || [];
     if (!ficheiros.length) return res.status(400).json({ erro: 'Nenhuma fotografia recebida.' });
     const criterioOrdem = (req.body && req.body.ordem) || g.ordemFotos || 'captura';
+    /* qualidade escolhida no upload (900/1200/1500/2000, padrão 900) — só galeria */
+    const qualEscolhida = Math.max(400, Math.min(2200, parseInt(req.body && req.body.qualidade, 10) || 900));
     g.fotosMeta = g.fotosMeta || {};
     const guardadas = [];
     const saltadas = [];
@@ -1352,11 +1358,11 @@ api.post('/galerias/:id/fotos-lote', (req, res) => {
       const base = (semExt || '').trim() || String(g.fotos.length + 1).padStart(4, '0');
       const nomeUnico = base.slice(0, 80).trim() + '_' + Date.now().toString(36) + '_' + idx;
       try {
-        const url = await processarEGuardarImagem(f.buffer, 'fotos/' + g.slug, nomeUnico);
+        const url = await processarEGuardarImagem(f.buffer, 'fotos/' + g.slug, nomeUnico, qualEscolhida);
         if (!url) { falhas.push(origem); continue; }
         g.fotos.push(url);
         guardadas.push(url);
-        let meta = { url, nomeOriginal: origem, dataCaptura: null, hora: null, camera: null, timestamp: null };
+        let meta = { url, nomeOriginal: origem, dataCaptura: null, hora: null, camera: null, timestamp: null, qualidade: qualEscolhida };
         try {
           const extraido = await extrairMetaImagem(f.buffer, origem);
           meta.timestamp = extraido.timestamp || null;

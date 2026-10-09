@@ -794,6 +794,18 @@
   var cancelados = new Set();
   var filaFotos = { lista: [], total: 0, feitas: 0, aCorrer: false, parada: false, loteAtual: null };
   var TAMANHO_LOTE = 5;
+  /* qualidade das fotos da galeria (lado maior em px; padrão 900 — a capa fica intacta) */
+  var qualidadeFotos = 900;
+
+  if (el('grupoQualidade')) {
+    el('grupoQualidade').addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('[data-qual]') : null;
+      if (!b) return;
+      qualidadeFotos = Math.max(400, Math.min(2200, parseInt(b.dataset.qual, 10) || 900));
+      var botoes = el('grupoQualidade').querySelectorAll('[data-qual]');
+      for (var i = 0; i < botoes.length; i++) botoes[i].classList.toggle('on', botoes[i] === b);
+    });
+  }
 
   function atualizarFilaProc() {
     var caixa = el('filaProc');
@@ -874,6 +886,7 @@
     var fd = new FormData();
     ficheiros.forEach(function (item) { fd.append('fotos', item.file, item.file.name); });
     fd.append('ordem', actual.ordemFotos || 'captura');
+    fd.append('qualidade', String(qualidadeFotos || 900));
     return new Promise(function (resolver) {
       var xhr = new XMLHttpRequest();
       filaFotos.loteAtual = xhr;
