@@ -1683,6 +1683,34 @@ api.get('/contactos', (req, res) => {
   }));
 });
 
+/* editar um cliente (perfil nos contactos). Não cria nem apaga galerias:
+   só os dados do cliente. O WhatsApp não pode repetir noutro cliente. */
+api.put('/contactos/:id', (req, res) => {
+  const c = clientes.find(x => x.id === req.params.id);
+  if (!c) return res.status(404).json({ erro: 'Cliente inexistente.' });
+  const b = req.body || {};
+  if (b.nome !== undefined) {
+    const nome = String(b.nome).trim();
+    if (!nome) return res.status(400).json({ erro: 'Falta o nome do cliente.' });
+    c.nome = nome;
+  }
+  if (b.whatsapp !== undefined) {
+    const whats = normalizarWhats(b.whatsapp);
+    const outro = whats && clientes.find(x => x.id !== c.id && normalizarWhats(x.whatsapp) === whats);
+    if (outro) return res.status(409).json({ erro: 'Este WhatsApp já pertence a ' + outro.nome + '.' });
+    c.whatsapp = whats;
+  }
+  if (b.fotosContratadas !== undefined) c.fotosContratadas = String(b.fotosContratadas).trim();
+  if (b.precoExtra !== undefined) c.precoExtra = String(b.precoExtra).trim();
+  if (b.senha !== undefined && String(b.senha).trim()) c.senha = String(b.senha).trim();
+  guardarClientes();
+  const gs = galerias.filter(g => g.clienteId === c.id);
+  res.json(Object.assign({}, c, {
+    galerias: gs.map(g => ({ id: g.id, slug: g.slug, nome: g.nome, estado: estadoDe(g) })),
+    comSelecao: gs.filter(g => g.selecao && g.selecao.fotos.length).length
+  }));
+});
+
 /* ---- landing page ---- */
 
 const MAX_LANDING = 50 * 1024 * 1024;   /* estado da landing (texto + fotos em base64) */

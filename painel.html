@@ -249,6 +249,11 @@
     </div>
 
     <div id="formCliente" hidden>
+      <label for="cExistente">Cliente</label>
+      <select id="cExistente">
+        <option value="">+ Novo cliente…</option>
+      </select>
+
       <label for="cNome">Nome do cliente</label>
       <input id="cNome" type="text" placeholder="Maria Fernandes">
 
@@ -335,6 +340,57 @@
     <a class="secundario" id="dAbrir" target="_blank" rel="noopener">Ver como cliente</a>
     <a class="primario" id="dWhats" target="_blank" rel="noopener" hidden>Enviar link no WhatsApp</a>
     <button class="secundario perigo" id="dApagar">Apagar</button>
+  </footer>
+</section>
+
+<!-- ============ PERFIL DO CLIENTE ============ -->
+<div class="fundo" id="fundoPerfil" hidden></div>
+<section class="detalhe" id="perfil" hidden role="dialog" aria-modal="true" aria-label="Cliente">
+  <header class="det-topo">
+    <div>
+      <p class="det-eyebrow">Cliente</p>
+      <h2 id="pNome">—</h2>
+      <p class="det-estado" id="pEstado">—</p>
+    </div>
+    <button class="fechar" id="pFechar" aria-label="Fechar">✕</button>
+  </header>
+
+  <div class="det-corpo">
+    <dl class="det-info" id="pInfo"></dl>
+
+    <div id="pEditarWrap" hidden>
+      <label for="pEditNome">Nome do cliente</label>
+      <input id="pEditNome" type="text">
+
+      <label for="pEditWhats">WhatsApp do cliente</label>
+      <input id="pEditWhats" type="tel">
+
+      <div class="duas">
+        <div>
+          <label for="pEditFotos">Nº de fotografias contratadas</label>
+          <input id="pEditFotos" type="number" min="1">
+        </div>
+        <div>
+          <label for="pEditPreco">Preço por foto extra (Kz)</label>
+          <input id="pEditPreco" type="number" min="0" step="100">
+        </div>
+      </div>
+
+      <label for="pEditSenha">Palavra-passe</label>
+      <input id="pEditSenha" type="text" placeholder="Só preenche para alterar">
+      <small style="color:var(--suave);font-size:12px;display:block;margin-top:-6px;margin-bottom:12px;">Altera o cliente; as galerias já criadas mantêm a palavra-passe que tinham.</small>
+    </div>
+
+    <h3>Galerias · <span id="pTotal">0</span></h3>
+    <div class="gal-lista" id="pGalerias"></div>
+    <p class="vazio" id="pSemGalerias" hidden>Este cliente ainda não tem galerias.</p>
+  </div>
+
+  <footer class="det-acoes">
+    <button class="secundario" id="pEditar">Editar</button>
+    <button class="primario" id="pGuardar" hidden>Guardar</button>
+    <button class="secundario" id="pCancelarEdicao" hidden>Cancelar</button>
+    <a class="primario" id="pWhats" target="_blank" rel="noopener" hidden>WhatsApp</a>
   </footer>
 </section>
 

@@ -496,6 +496,9 @@
     el('cExtra').value = (g && g.cliente && g.cliente.precoExtra) || '';
     if (el('cSenha')) el('cSenha').value = (g && g.senha) || (g && g.cliente && g.cliente.senha) || 'ellyfotografo';
 
+    /* seletor de cliente existente: pré-seleciona o da galeria (a editar) */
+    carregarOpcoesCliente(g && g.cliente && g.cliente.id);
+
     fundo.hidden = false;
     ast.hidden = false;
     mostrarPasso(1);
@@ -1428,6 +1431,45 @@
     });
   });
 
+  /* ---------- seletor de cliente existente (passo 3, galeria privada) ----------
+     Escolher um cliente preenche os campos; "+ Novo cliente…" deixa escrever
+     à mão. Ao gravar, o servidor liga pelo WhatsApp/nome (sem duplicar). */
+  var cacheOpcoesCliente = [];
+
+  function carregarOpcoesCliente(selId) {
+    var sel = el('cExistente');
+    if (!sel) return Promise.resolve();
+    return api('/contactos').then(function (lista) {
+      cacheOpcoesCliente = lista || [];
+      sel.innerHTML = '<option value="">+ Novo cliente…</option>' +
+        cacheOpcoesCliente.map(function (c) {
+          return '<option value="' + esc(c.id) + '">' +
+                 esc(c.nome + (c.whatsapp ? ' — ' + c.whatsapp : '')) + '</option>';
+        }).join('');
+      var existe = selId && cacheOpcoesCliente.some(function (c) { return c.id === selId; });
+      sel.value = existe ? selId : '';
+    }).catch(function () {
+      cacheOpcoesCliente = [];
+      sel.innerHTML = '<option value="">+ Novo cliente…</option>';
+      sel.value = '';
+    });
+  }
+
+  if (el('cExistente')) {
+    el('cExistente').addEventListener('change', function () {
+      var id = this.value;
+      if (!id) return; /* novo cliente: mantém o que está escrito */
+      var c = cacheOpcoesCliente.find(function (x) { return x.id === id; });
+      if (!c) return;
+      el('cNome').value = c.nome || '';
+      el('cWhats').value = c.whatsapp || '';
+      el('cFotos').value = c.fotosContratadas || '';
+      el('cExtra').value = c.precoExtra || '';
+      if (el('cSenha')) el('cSenha').value = c.senha || 'ellyfotografo';
+      toast('Cliente "' + c.nome + '" selecionado.', 'ok');
+    });
+  }
+
   function validarPasso() {
     if (actual.passo === 1) {
       if (!el('gNome').value.trim()) { toast('Dá um nome à galeria.', 'aviso'); return false; }
@@ -1847,8 +1889,9 @@
         '<td>' + (c.precoExtra ? esc(c.precoExtra) + ' Kz' : '—') + '</td>' +
         '<td><div class="gal-lista">' + lista + '</div></td>' +
         '<td style="text-align:right;white-space:nowrap">' +
+          '<button type="button" class="secundario" data-perfil="' + esc(c.id) + '">Perfil</button>' +
           (c.whatsapp
-            ? '<a href="' + esc(linkWa(c.whatsapp, texto)) +
+            ? ' &nbsp;·&nbsp; <a href="' + esc(linkWa(c.whatsapp, texto)) +
               '" target="_blank" rel="noopener">WhatsApp</a>'
             : '') +
           (galeriasDo.length
@@ -1868,6 +1911,118 @@
   }
 
   el('buscaContacto').addEventListener('input', desenharContactos);
+
+  el('corpoContactos').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-perfil]');
+    if (!b) return;
+    ev.preventDefault();
+    abrirPerfil(b.dataset.perfil);
+  });
+
+  /* ================= PERFIL DO CLIENTE ================= */
+
+  var perfilCliente = null;
+  var perfilEditando = false;
+
+  function abrirPerfil(id) {
+    var c = contactos.find(function (x) { return x.id === id; });
+    if (c) { mostrarPerfil(c); return; }
+    api('/contactos').then(function (lista) {
+      contactos = lista || [];
+      desenharContactos();
+      var achou = contactos.find(function (x) { return x.id === id; });
+      if (achou) mostrarPerfil(achou);
+      else toast('Cliente inexistente.', 'erro');
+    }).catch(function () { toast('Não consegui abrir o perfil.', 'erro'); });
+  }
+
+  function mostrarPerfil(c) {
+    perfilCliente = c;
+    perfilEditando = false;
+    desenharPerfil();
+    el('fundoPerfil').hidden = false;
+    el('perfil').hidden = false;
+  }
+
+  function fecharPerfil() {
+    el('perfil').hidden = true;
+    el('fundoPerfil').hidden = true;
+  }
+
+  function desenharPerfil() {
+    var c = perfilCliente;
+    if (!c) return;
+    var gs = c.galerias || [];
+    el('pNome').textContent = c.nome || '—';
+    el('pEstado').textContent = gs.length + (gs.length === 1 ? ' galeria' : ' galerias') +
+      (c.comSelecao ? ' · ' + c.comSelecao + ' com seleção' : '');
+    el('pInfo').innerHTML = [
+      ['WhatsApp', c.whatsapp ? esc(c.whatsapp) : '—'],
+      ['Fotos contratadas', c.fotosContratadas ? esc(c.fotosContratadas) : '—'],
+      ['Preço por foto extra', c.precoExtra ? esc(c.precoExtra) + ' Kz' : '—'],
+      ['Palavra-passe', esc(c.senha || 'ellyfotografo')],
+      ['Cliente desde', dataCurta(c.criadoEm)]
+    ].map(function (l) { return '<dt>' + l[0] + '</dt><dd>' + l[1] + '</dd>'; }).join('');
+    el('pTotal').textContent = gs.length;
+    el('pSemGalerias').hidden = gs.length > 0;
+    el('pGalerias').innerHTML = gs.map(function (g) {
+      return '<a href="/g/' + g.slug + '?equipa=1" target="_blank" rel="noopener">' +
+             esc(g.nome) + '</a>' +
+             '<span class="pequeno">' + esc((typeof ROTULO_ESTADO !== 'undefined' && ROTULO_ESTADO[g.estado]) || g.estado || '') + '</span>';
+    }).join('');
+    var wa = el('pWhats');
+    if (c.whatsapp) {
+      wa.hidden = false;
+      wa.href = linkWa(c.whatsapp, 'Olá ' + c.nome + '!');
+    } else { wa.hidden = true; }
+    el('pEditarWrap').hidden = !perfilEditando;
+    el('pInfo').hidden = perfilEditando;
+    el('pEditar').hidden = perfilEditando;
+    el('pGuardar').hidden = !perfilEditando;
+    el('pCancelarEdicao').hidden = !perfilEditando;
+    if (perfilEditando) {
+      el('pEditNome').value = c.nome || '';
+      el('pEditWhats').value = c.whatsapp || '';
+      el('pEditFotos').value = c.fotosContratadas || '';
+      el('pEditPreco').value = c.precoExtra || '';
+      el('pEditSenha').value = '';
+    }
+  }
+
+  el('pFechar').addEventListener('click', fecharPerfil);
+  el('fundoPerfil').addEventListener('click', fecharPerfil);
+  el('pEditar').addEventListener('click', function () {
+    if (!perfilCliente) return;
+    perfilEditando = true;
+    desenharPerfil();
+  });
+  el('pCancelarEdicao').addEventListener('click', function () {
+    perfilEditando = false;
+    desenharPerfil();
+  });
+  el('pGuardar').addEventListener('click', function () {
+    if (!perfilCliente) return;
+    var corpo = {
+      nome: el('pEditNome').value.trim(),
+      whatsapp: el('pEditWhats').value.trim(),
+      fotosContratadas: el('pEditFotos').value.trim(),
+      precoExtra: el('pEditPreco').value.trim()
+    };
+    if (el('pEditSenha').value.trim()) corpo.senha = el('pEditSenha').value.trim();
+    el('pGuardar').disabled = true;
+    api('/contactos/' + encodeURIComponent(perfilCliente.id), { method: 'PUT', body: corpo })
+      .then(function (atualizado) {
+        perfilCliente = atualizado;
+        perfilEditando = false;
+        var i = contactos.findIndex(function (x) { return x.id === atualizado.id; });
+        if (i >= 0) contactos[i] = atualizado;
+        desenharContactos();
+        desenharPerfil();
+        toast('Cliente atualizado.', 'ok');
+      })
+      .catch(function (e) { toast(e.message, 'erro'); })
+      .then(function () { el('pGuardar').disabled = false; });
+  });
 
   /* ================= LANDING PAGE ================= */
 
