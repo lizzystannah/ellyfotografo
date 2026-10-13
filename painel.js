@@ -314,7 +314,7 @@
               '</span>' +
             '</div>' +
             '<div class="linha-meta">' +
-              '<span class="meta">' + g.fotos.length + ' fotos · ' + (expirou ? '<b class="txt-expirou">' + tempoExpira + '</b>' : tempoExpira) + '</span>' +
+              '<span class="meta">' + g.fotos.length + ' fotos · Criada em ' + dataCurta(g.criadaEm) + '</span>' +
             '</div>' +
             '<div class="linha-privacidade">' +
               selo +
