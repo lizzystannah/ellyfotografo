@@ -627,7 +627,7 @@ function guardaImagem(dataUrl, destino) {
 /* Processa a imagem com compressão Sharp e faz upload para Cloudflare R2 ou guarda localmente.
    Aceita data-URL (fluxo antigo) OU buffer direto (upload multipart do navegador).
    maxLado limita o lado maior (só fotos da galeria — a capa usa o padrão). */
-async function processarEGuardarImagem(dataUrlOuBuffer, pastaRelativa, nomeSemExt, maxLado) {
+async function processarEGuardarImagem(dataUrlOuBuffer, pastaRelativa, nomeSemExt, maxLado, pularSharp) {
   let rawBuffer = null;
   if (Buffer.isBuffer(dataUrlOuBuffer)) {
     rawBuffer = dataUrlOuBuffer;
@@ -640,16 +640,20 @@ async function processarEGuardarImagem(dataUrlOuBuffer, pastaRelativa, nomeSemEx
   // Compressão com Sharp (auto-orienta EXIF com .rotate(), JPEG qualidade 82%).
   // Nas fotos da galeria o lado maior é limitado pela qualidade escolhida
   // no upload (900/1200/1500/2000, padrão 900); a capa mantém 2200px.
+  // pularSharp=true (lotes pré-otimizados no cliente): guarda o buffer como
+  // está, sem re-codificar — poupa CPU e tempo de resposta por pedido.
   const lado = Math.max(400, Math.min(2200, parseInt(maxLado, 10) || 2200));
   let compressedBuffer = rawBuffer;
-  try {
-    compressedBuffer = await sharp(rawBuffer)
-      .rotate()
-      .resize({ width: lado, height: lado, fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 82, progressive: true })
-      .toBuffer();
-  } catch (e) {
-    console.warn('Aviso compressão Sharp:', e.message);
+  if (!pularSharp) {
+    try {
+      compressedBuffer = await sharp(rawBuffer)
+        .rotate()
+        .resize({ width: lado, height: lado, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 82, progressive: true })
+        .toBuffer();
+    } catch (e) {
+      console.warn('Aviso compressão Sharp:', e.message);
+    }
   }
 
   const key = `${pastaRelativa}/${nomeSemExt}.jpg`.replace(/^\/+/, '');
@@ -746,6 +750,35 @@ function nomeOriginalSeguro(nome) {
     .replace(/[\u0000-\u001f\u007f<>:"|?*]+/g, '')
     .trim()
     .slice(0, 90);
+}
+
+/* Valida os metadados que o painel envia junto das fotos PRÉ-otimizadas
+   (campo 'metas' do lote). Nunca se confia cegamente: timestamp tem de ser
+   número, hora tem formato HH:MM[:SS], câmara é texto curto. Devolve null
+   se não houver nome aproveitável — nesse caso o lote segue o fluxo antigo
+   (Sharp + EXIF no servidor) para essa foto. */
+function metaClienteSegura(m) {
+  if (!m || typeof m !== 'object') return null;
+  const nome = nomeOriginalSeguro(m.nome);
+  if (!nome) return null;
+  const tsNum = Number(m.timestamp);
+  const timestamp = Number.isFinite(tsNum) && tsNum > 0 ? Math.floor(tsNum) : null;
+  let hora = String(m.hora || '').trim().slice(0, 8);
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(hora)) hora = null;
+  const camera = String(m.camera || '').replace(/\s+/g, ' ').trim().slice(0, 120) || null;
+  let dataCaptura = String(m.dataCaptura || '');
+  const dtTs = timestamp ? new Date(timestamp) : null;
+  if (!dataCaptura || isNaN(Date.parse(dataCaptura))) {
+    dataCaptura = (dtTs && !isNaN(dtTs.getTime())) ? dtTs.toISOString() : null;
+  }
+  return { nome, timestamp, hora, camera, dataCaptura };
+}
+
+/* O cliente pré-otimizado envia sempre JPEG (canvas). Sem o Sharp a validar,
+   confirma-se pelo menos a assinatura do ficheiro antes de guardar. */
+function pareceJpeg(buf) {
+  return Buffer.isBuffer(buf) && buf.length > 3 &&
+    buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF;
 }
 
 /* Extrai metadados EXIF (horário de disparo, câmera, etc.) */
@@ -1345,14 +1378,29 @@ api.post('/galerias/:id/fotos-lote', (req, res) => {
     const criterioOrdem = (req.body && req.body.ordem) || g.ordemFotos || 'captura';
     /* qualidade escolhida no upload (900/1200/1500/2000, padrão 900) — só galeria */
     const qualEscolhida = Math.max(400, Math.min(2200, parseInt(req.body && req.body.qualidade, 10) || 900));
+    /* FASE C: lote pré-otimizado no cliente (campo 'metas' com nome/timestamp/
+       câmara por foto, na mesma ordem dos ficheiros). O servidor só guarda:
+       sem Sharp, sem EXIF próprio. Pedidos antigos (sem 'metas') seguem o
+       fluxo original, foto a foto. */
+    const preOtimizadas = req.body && (req.body.preOtimizadas === '1' || req.body.preOtimizadas === 'true');
+    let metasCli = [];
+    if (preOtimizadas) {
+      try {
+        const bruto = req.body.metas;
+        const arr = typeof bruto === 'string' ? JSON.parse(bruto) : bruto;
+        if (Array.isArray(arr)) metasCli = arr;
+      } catch (e) { metasCli = []; }
+    }
     g.fotosMeta = g.fotosMeta || {};
     const guardadas = [];
     const saltadas = [];
     const falhas = [];
     for (let idx = 0; idx < ficheiros.length; idx++) {
       const f = ficheiros[idx];
-      const origem = nomeOriginalSeguro(f.originalname);
-      /* dedup: foto com o mesmo nome original já está na galeria → saltar */
+      const metaCli = preOtimizadas ? metaClienteSegura(metasCli[idx]) : null;
+      /* dedup pelo nome ORIGINAL do cliente (não pelo nome do upload, que
+         nas pré-otimizadas é sempre .jpg) */
+      const origem = metaCli ? metaCli.nome : nomeOriginalSeguro(f.originalname);
       const jaExiste = g.fotos.some(function (u) {
         const m = g.fotosMeta[u];
         return m && m.nomeOriginal === origem;
@@ -1362,25 +1410,47 @@ api.post('/galerias/:id/fotos-lote', (req, res) => {
       const base = (semExt || '').trim() || String(g.fotos.length + 1).padStart(4, '0');
       const nomeUnico = base.slice(0, 80).trim() + '_' + Date.now().toString(36) + '_' + idx;
       try {
-        const url = await processarEGuardarImagem(f.buffer, 'fotos/' + g.slug, nomeUnico, qualEscolhida);
-        if (!url) { falhas.push(origem); continue; }
+        let url = null;
+        let meta = null;
+        if (metaCli) {
+          /* fluxo pré-otimizado: valida a assinatura JPEG e guarda direto */
+          if (!pareceJpeg(f.buffer)) { falhas.push(origem); continue; }
+          url = await processarEGuardarImagem(f.buffer, 'fotos/' + g.slug, nomeUnico, qualEscolhida, true);
+          if (!url) { falhas.push(origem); continue; }
+          meta = {
+            url,
+            nomeOriginal: origem,
+            dataCaptura: metaCli.dataCaptura,
+            hora: metaCli.hora,
+            camera: metaCli.camera,
+            timestamp: metaCli.timestamp || (Date.now() + idx),
+            qualidade: qualEscolhida
+          };
+        } else {
+          url = await processarEGuardarImagem(f.buffer, 'fotos/' + g.slug, nomeUnico, qualEscolhida);
+          if (!url) { falhas.push(origem); continue; }
+          meta = { url, nomeOriginal: origem, dataCaptura: null, hora: null, camera: null, timestamp: null, qualidade: qualEscolhida };
+          try {
+            const extraido = await extrairMetaImagem(f.buffer, origem);
+            meta.timestamp = extraido.timestamp || null;
+            meta.dataCaptura = extraido.dataCaptura;
+            meta.hora = extraido.hora;
+            meta.camera = extraido.camera;
+          } catch (e) {}
+          if (!meta.timestamp) meta.timestamp = Date.now() + idx;
+        }
         g.fotos.push(url);
         guardadas.push(url);
-        let meta = { url, nomeOriginal: origem, dataCaptura: null, hora: null, camera: null, timestamp: null, qualidade: qualEscolhida };
-        try {
-          const extraido = await extrairMetaImagem(f.buffer, origem);
-          meta.timestamp = extraido.timestamp || null;
-          meta.dataCaptura = extraido.dataCaptura;
-          meta.hora = extraido.hora;
-          meta.camera = extraido.camera;
-        } catch (e) {}
-        if (!meta.timestamp) meta.timestamp = Date.now() + idx;
         g.fotosMeta[url] = meta;
       } catch (e) {
         console.error('ERRO a processar foto do lote:', origem, '-', e.message);
         falhas.push(origem);
       }
     }
+    /* Com timestamps corretos desde o primeiro lote (o cliente lê o EXIF
+       antes de enviar), esta ordenação converge de imediato e a galeria
+       deixa de "dançar" a cada lote. Mantém-se o caminho de persistência
+       (memória + JSON + sync MySQL via guardarGalerias). */
     ordenarFotos(g, criterioOrdem);
     tocarGaleria(g);
     guardarGalerias();

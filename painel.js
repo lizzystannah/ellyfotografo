@@ -785,14 +785,18 @@
     };
   }
 
-  /* passo 2 → fotos da galeria.
-     UPLOAD DIRETO NO BACKEND: o navegador envia os ficheiros originais em
-     LOTES (5 por pedido) e o servidor faz o trabalho pesado (EXIF, Sharp,
-     R2). O painel mostra um cartão de cada vez + contador (ex.: 45/200) e o
-     progresso real de envio. Cada lote confirmado fica guardado: se a aba
-     fechar ou a net cair, ao voltar o sistema retoma só o que falta. */
+  /* passo 2 → fotos da galeria, em DUAS FASES (como as galerias profissionais):
+     FASE A (otimizar): o navegador reduz cada foto para a qualidade definida
+     (lado maior em px), lê data/hora de captura e câmara, e ordena tudo —
+     com barra de progresso própria. Só depois começa a Fase B.
+     FASE B (enviar): sobem LOTES de 5 fotografias JÁ otimizadas, cada uma
+     com os metadados ao lado (nome, timestamp, câmara, posição), para o
+     servidor só guardar, sem EXIF nem Sharp por pedido. Cada lote confirmado
+     fica guardado: se a aba fechar ou a net cair, ao voltar o sistema retoma
+     só o que falta (nomes originais). */
   var cancelados = new Set();
-  var filaFotos = { lista: [], total: 0, feitas: 0, aCorrer: false, parada: false, loteAtual: null };
+  var filaFotos = { lista: [], total: 0, feitas: 0, aCorrer: false, parada: false, loteAtual: null, falhasSeguidas: 0 };
+  var filaOpts = { total: 0, feitas: 0, aCorrer: false, parada: false };
   var TAMANHO_LOTE = 5;
   /* qualidade das fotos da galeria (lado maior em px; padrão 900 — a capa fica intacta) */
   var qualidadeFotos = 900;
@@ -810,6 +814,15 @@
   function atualizarFilaProc() {
     var caixa = el('filaProc');
     if (!caixa) return;
+    /* fase A primeiro: barra de otimização */
+    if (filaOpts.aCorrer && filaOpts.total > 0) {
+      caixa.hidden = false;
+      el('filaProcTxt').textContent = 'A otimizar ' + Math.min(filaOpts.feitas + 1, filaOpts.total) +
+        '/' + filaOpts.total + '… (reduzir para a qualidade definida)';
+      var pctA = filaOpts.total ? Math.round((filaOpts.feitas / filaOpts.total) * 100) : 0;
+      el('filaProcBar').style.width = pctA + '%';
+      return;
+    }
     var emCurso = filaFotos.aCorrer && filaFotos.total > 0;
     caixa.hidden = !emCurso;
     if (!emCurso) return;
@@ -828,30 +841,39 @@
 
   if (el('filaProcCancelar')) {
     el('filaProcCancelar').addEventListener('click', function () {
+      filaOpts.parada = true;
+      filaOpts.aCorrer = false;
       filaFotos.parada = true;
       filaFotos.lista = [];
       filaFotos.aCorrer = false;
+      /* aborta mesmo o pedido em voo (antes só limpava a fila e o pedido
+         continuava a gastar tempo de servidor) */
+      try { if (filaFotos.loteAtual) filaFotos.loteAtual.abort(); } catch (e) {}
+      filaFotos.loteAtual = null;
       limparFotoVez();
       atualizarFilaProc();
       toast('Envio parado. As fotos já guardadas ficam no servidor.', 'info');
     });
   }
 
-  /* cartão único da foto em envio (pré-visualização local leve) */
-  function mostrarCartaoVez(file, idUnico) {
+  /* cartão único da foto em envio (pré-visualização local leve).
+     Sem botão ✕: o cartão representa o lote inteiro já em voo — "saltar"
+     aqui não abortava nada e ainda contava a foto como feita. Para parar,
+     usa o botão de parar o envio. */
+  function mostrarCartaoVez(file, idUnico, nomeMostrar) {
     var vez = el('fotoVez');
     if (!vez) return null;
+    var rotulo = nomeMostrar || file.name;
     vez.hidden = false;
     vez.innerHTML = [
       '<div class="u-item-upload u-carregando" id="' + idUnico + '">',
-      '  <img src="" alt="' + esc(file.name) + '">',
-      '  <button type="button" class="u-remover" data-cancelar="' + idUnico + '" title="Saltar esta fotografia" aria-label="Saltar ' + esc(file.name) + '">✕</button>',
+      '  <img src="" alt="' + esc(rotulo) + '">',
       '  <div class="u-prog-overlay">',
       '    <span class="u-prog-num">0%</span>',
       '    <div class="u-prog-bar-wrap"><div class="u-prog-bar-fill" style="width:0%"></div></div>',
       '  </div>',
       '</div>',
-      '<div class="u-foto-nome">' + esc(file.name) + '</div>'
+      '<div class="u-foto-nome">' + esc(rotulo) + '</div>'
     ].join('');
     var tempDiv = vez.querySelector('#' + idUnico);
     try {
@@ -880,41 +902,246 @@
     try { if (tempDiv && tempDiv._prevUrl) URL.revokeObjectURL(tempDiv._prevUrl); } catch (e) {}
   }
 
-  /* envia UM lote (até 5 ficheiros originais) com retentativa */
+  function gerarIdFoto() {
+    try {
+      if (window.crypto && crypto.randomUUID) return 'u_foto_' + crypto.randomUUID();
+    } catch (e) {}
+    return 'u_foto_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+  }
+
+  /* O conteúdo otimizado é sempre JPEG, mesmo que o original seja .CR3/.NEF/
+     .PNG: o nome de ENVIO leva por isso extensão .jpg (o servidor deriva tipo
+     de ficheiro do nome — um JPEG chamado .CR3 partia a galeria). O nome
+     ORIGINAL segue em meta.nome para a retoma continuar a casar. */
+  function nomeParaEnvio(nome) {
+    var base = String(nome || 'foto').split('/').pop().split('\\').pop();
+    base = base.includes('.') ? base.slice(0, base.lastIndexOf('.')) : base;
+    base = base.trim() || 'foto';
+    return base.slice(0, 80) + '.jpg';
+  }
+
+  /* Retoma por nome EXATO (minúsculas), igual ao dedupe do servidor: gémeos
+     RAW+JPEG com a mesma base são fotos diferentes e ambas sobem. */
+
+  function dataURLparaBlob(dataUrl) {
+    var partes = String(dataUrl || '').split(',');
+    var bin = atob(partes[1] || '');
+    var buf = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return new Blob([buf], { type: 'image/jpeg' });
+  }
+
+  /* reduz UMA foto para o lado maior = maxDim (px) e devolve um Blob JPEG.
+     Chama-se uma foto de cada vez (a fila é sequencial) para não esgotar RAM.
+     Nota: o JPEG resultante perde o EXIF embutido — os metadados seguem ao
+     lado (ver otimizarUmaFoto), nunca dentro do ficheiro. */
+  function redimensionarParaQualidade(file, maxDim) {
+    maxDim = Math.max(400, Math.min(2200, parseInt(maxDim, 10) || 900));
+    function paraBlob(canvas) {
+      return new Promise(function (res, rej) {
+        try {
+          if (canvas.toBlob) {
+            canvas.toBlob(function (b) { b ? res(b) : rej(new Error('sem blob')); }, 'image/jpeg', 0.84);
+          } else {
+            res(dataURLparaBlob(canvas.toDataURL('image/jpeg', 0.84)));
+          }
+        } catch (e) { rej(e); }
+      });
+    }
+    function desenhar(origem, largura, altura) {
+      var canvas = document.createElement('canvas');
+      var w = largura, h = altura;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+        else { w = Math.round((w * maxDim) / h); h = maxDim; }
+      }
+      /* fotos já menores que a qualidade não são ampliadas: só re-codificadas */
+      canvas.width = Math.max(1, w);
+      canvas.height = Math.max(1, h);
+      canvas.getContext('2d').drawImage(origem, 0, 0, canvas.width, canvas.height);
+      return paraBlob(canvas);
+    }
+    function lerPorImage(f) {
+      return new Promise(function (res, rej) {
+        var url = null;
+        try { url = URL.createObjectURL(f); } catch (e) { rej(e); return; }
+        var img = new Image();
+        img.onload = function () {
+          try { URL.revokeObjectURL(url); } catch (e) {}
+          desenhar(img, img.naturalWidth || img.width, img.naturalHeight || img.height).then(res, rej);
+        };
+        img.onerror = function () {
+          try { URL.revokeObjectURL(url); } catch (e) {}
+          rej(new Error('foto ilegível'));
+        };
+        img.src = url;
+      });
+    }
+    if (window.createImageBitmap) {
+      return createImageBitmap(file, { imageOrientation: 'from-image' }).then(function (bmp) {
+        var p = desenhar(bmp, bmp.width, bmp.height);
+        try { bmp.close(); } catch (e) {}
+        return p;
+      }).catch(function () { return lerPorImage(file); });
+    }
+    return lerPorImage(file);
+  }
+
+  /* FASE A por foto: lê metadados do original + reduz. Devolve o item pronto
+     a enfileirar (ficheiro otimizado + nome de envio .jpg + metadados). */
+  function otimizarUmaFoto(file) {
+    var id = gerarIdFoto();
+    var nomeEnvio = nomeParaEnvio(file.name);
+    return extrairMetaFicheiro(file).then(function (meta) {
+      return redimensionarParaQualidade(file, qualidadeFotos).then(function (blob) {
+        var stamp = Number(meta.timestamp) || file.lastModified || Date.now();
+        var otimizado;
+        try {
+          otimizado = new File([blob], nomeEnvio, { type: 'image/jpeg', lastModified: stamp });
+        } catch (e) {
+          /* browsers antigos sem construtor File: o nome vai no 3.º argumento
+             do append (ver enviarLote), por isso aqui o Blob chega */
+          otimizado = blob;
+        }
+        return {
+          file: otimizado,
+          id: id,
+          nomeEnvio: nomeEnvio,
+          meta: {
+            id: id,
+            nome: file.name,
+            nomeEnvio: nomeEnvio,
+            timestamp: stamp,
+            dataCaptura: meta.dataCaptura,
+            hora: meta.horaFormatada || null,
+            camera: meta.camera || null,
+            /* pos é relativo a ESTA seleção; a posição global só o servidor
+               a pode definir — até lá, não é autoritativo */
+            pos: -1
+          }
+        };
+      });
+    });
+  }
+
+  function compararItensOtimizados(a, b) {
+    var c = actual.ordemFotos || 'captura';
+    var ma = (a && a.meta) || {}, mb = (b && b.meta) || {};
+    if (c === 'captura' || c === 'captura_desc') {
+      var ta = Number(ma.timestamp) || 0, tb = Number(mb.timestamp) || 0;
+      if (ta !== tb) return c === 'captura' ? ta - tb : tb - ta;
+    }
+    var d = String(ma.nome || '').localeCompare(String(mb.nome || ''), undefined, { numeric: true });
+    return (c === 'nome_desc' || c === 'captura_desc') ? -d : d;
+  }
+
+  /* FASE A (todas as fotos primeiro, uma a uma, com progresso honesto).
+     No fim ordena segundo o critério atual, numera a posição final e chama
+     aoTerminar(prontas). Fotos ilegíveis são saltadas com aviso. */
+  function otimizarFila(novas, aoTerminar) {
+    var pendentes = novas.slice();
+    filaOpts.total = pendentes.length;
+    filaOpts.feitas = 0;
+    filaOpts.aCorrer = true;
+    filaOpts.parada = false;
+    atualizarFilaProc();
+    var prontas = [];
+    function passo() {
+      if (filaOpts.parada) {
+        filaOpts.aCorrer = false;
+        atualizarFilaProc();
+        toast('Otimização parada.', 'info');
+        return;
+      }
+      if (!pendentes.length) {
+        filaOpts.aCorrer = false;
+        atualizarFilaProc();
+        prontas.sort(compararItensOtimizados);
+        prontas.forEach(function (it, i) { it.meta.pos = i; });
+        toast('Otimização pronta: ' + prontas.length + ' fotografias. A enviar…', 'ok');
+        aoTerminar(prontas);
+        return;
+      }
+      var file = pendentes.shift();
+      otimizarUmaFoto(file).then(function (it) {
+        prontas.push(it);
+        filaOpts.feitas++;
+        atualizarFilaProc();
+        passo();
+      }).catch(function () {
+        filaOpts.feitas++;
+        atualizarFilaProc();
+        toast('Não consegui otimizar ' + (file && file.name ? file.name : 'uma fotografia') + ' — vou saltá-la.', 'erro');
+        passo();
+      });
+    }
+    passo();
+  }
+
+  /* envia UM lote (até 5 fotografias JÁ otimizadas) com retentativa.
+     Cada foto segue com os metadados lidos no cliente para o servidor só
+     guardar, sem EXIF nem Sharp por pedido. */
+  /* 60s: abaixo do corte típico do proxy (~60s) para falharmos depressa com
+     mensagem clara em vez de ficarmos pendurados até o proxy cortar.
+     Afinar para o proxy_read_timeout real da VPS. */
+  var TEMPO_LIMITE_LOTE = 60000;
   function enviarLote(ficheiros, tentativa) {
     tentativa = tentativa || 1;
+    /* retentativa agendada que dispara depois do parar: não envia nada */
+    if (filaFotos.parada) {
+      return Promise.resolve({ ok: false, cancelado: true, erro: 'Envio cancelado.' });
+    }
     var fd = new FormData();
-    ficheiros.forEach(function (item) { fd.append('fotos', item.file, item.file.name); });
+    var metas = ficheiros.map(function (item) {
+      return item.meta || { nome: item.file && item.file.name };
+    });
+    ficheiros.forEach(function (item) {
+      fd.append('fotos', item.file, item.nomeEnvio || (item.file && item.file.name));
+    });
+    fd.append('metas', JSON.stringify(metas));
+    fd.append('preOtimizadas', '1');
     fd.append('ordem', actual.ordemFotos || 'captura');
     fd.append('qualidade', String(qualidadeFotos || 900));
     return new Promise(function (resolver) {
+      function terminar(r) { filaFotos.loteAtual = null; resolver(r); }
+      function tentarDeNovo() {
+        /* o botão parar tem de travar também as retentativas agendadas */
+        if (filaFotos.parada) {
+          terminar({ ok: false, cancelado: true, erro: 'Envio cancelado.' });
+          return false;
+        }
+        if (tentativa < 3) {
+          setTimeout(function () { enviarLote(ficheiros, tentativa + 1).then(resolver); }, 1500 * tentativa);
+          return true;
+        }
+        return false;
+      }
       var xhr = new XMLHttpRequest();
       filaFotos.loteAtual = xhr;
       xhr.open('POST', '/api/galerias/' + encodeURIComponent(actual.id) + '/fotos-lote');
       xhr.setRequestHeader('Authorization', 'Bearer ' + sessao.token);
+      try { xhr.timeout = TEMPO_LIMITE_LOTE; } catch (e) {}
       xhr.upload.onprogress = function (ev) {
         if (!ev.lengthComputable) return;
         var p = Math.min(1, ev.loaded / ev.total);
         ficheiros.forEach(function (item) { if (item.tempDiv) marcarProgressoVez(item.tempDiv, p); });
       };
       xhr.onload = function () {
-        filaFotos.loteAtual = null;
         var d = {};
         try { d = JSON.parse(xhr.responseText || '{}'); } catch (e) {}
-        if (xhr.status >= 200 && xhr.status < 300) return resolver({ ok: true, dados: d });
-        if (tentativa < 3) {
-          setTimeout(function () { enviarLote(ficheiros, tentativa + 1).then(resolver); }, 1500 * tentativa);
-        } else {
-          resolver({ ok: false, erro: (d && d.erro) || 'Falha no envio.' });
-        }
+        if (xhr.status >= 200 && xhr.status < 300) return terminar({ ok: true, dados: d });
+        /* o servidor respondeu NÃO: retentar em 1,5s não cura nada (4xx/5xx).
+           Falha de imediato e deixa o recuo exponencial externo decidir. */
+        terminar({ ok: false, erro: (d && d.erro) || 'Falha no envio.' });
       };
       xhr.onerror = function () {
-        filaFotos.loteAtual = null;
-        if (tentativa < 3) {
-          setTimeout(function () { enviarLote(ficheiros, tentativa + 1).then(resolver); }, 1500 * tentativa);
-        } else {
-          resolver({ ok: false, erro: 'Falha de rede.' });
-        }
+        if (!tentarDeNovo()) terminar({ ok: false, erro: 'Falha de rede.' });
+      };
+      xhr.ontimeout = function () {
+        if (!tentarDeNovo()) terminar({ ok: false, erro: 'Tempo esgotado no lote.' });
+      };
+      xhr.onabort = function () {
+        terminar({ ok: false, cancelado: filaFotos.parada, erro: 'Envio cancelado.' });
       };
       xhr.send(fd);
     });
@@ -946,12 +1173,14 @@
     }
     var lote = filaFotos.lista.splice(0, TAMANHO_LOTE);
     var primeiro = lote[0];
-    primeiro.tempDiv = mostrarCartaoVez(primeiro.file, primeiro.id);
+    primeiro.tempDiv = mostrarCartaoVez(primeiro.file, primeiro.id,
+      (primeiro.meta && primeiro.meta.nome) || primeiro.file.name);
     lote.forEach(function (item) { if (item !== primeiro) item.tempDiv = primeiro.tempDiv; });
     atualizarFilaProc();
     enviarLote(lote).then(function (r) {
       libertarCartaoVez(primeiro.tempDiv);
       if (r.ok) {
+        filaFotos.falhasSeguidas = 0;
         var g = r.dados.galeria;
         if (g) {
           actual.existentes = g.fotos || actual.existentes;
@@ -962,12 +1191,29 @@
         if ((r.dados.falhas || []).length) {
           toast('Falharam ' + r.dados.falhas.length + ': ' + r.dados.falhas.slice(0, 3).join(', '), 'erro');
         }
+      } else if (r.cancelado) {
+        /* parado pelo utilizador (botão parar): não re-enfileira, não retenta */
+        atualizarFilaProc();
+        return;
       } else {
+        filaFotos.falhasSeguidas = (filaFotos.falhasSeguidas || 0) + 1;
+        if (filaFotos.falhasSeguidas >= 5) {
+          /* trava a cascata: devolve o lote à fila e PAUSA em vez de retentar
+             para sempre. Volta a escolher as fotos para retomar só o que falta. */
+          filaFotos.lista = lote.concat(filaFotos.lista);
+          filaFotos.aCorrer = false;
+          limparFotoVez();
+          atualizarFilaProc();
+          toast('Parei após falhas repetidas (' + r.erro + '). As fotos guardadas estão seguras — volta a escolher as fotos para retomar o que falta.', 'erro');
+          return;
+        }
         filaFotos.lista = lote.concat(filaFotos.lista);
         toast('Falha no lote (' + r.erro + '). Tenta de novo no fim.', 'erro');
       }
       atualizarFilaProc();
-      setTimeout(processarFilaLotes, 200);
+      /* recuo exponencial entre lotes falhados (0,2s → … → máx. 30s) */
+      var espera = Math.min(30000, 200 * Math.pow(2, filaFotos.falhasSeguidas || 0));
+      setTimeout(processarFilaLotes, espera);
     });
   }
 
@@ -979,44 +1225,76 @@
       toast('Guarda primeiro o passo 1 para criar a galeria.', 'aviso');
       return;
     }
-    /* retoma: pergunta ao servidor que nomes originais já lá estão e
-       mete na fila só os que faltam (se fechares a aba, é só voltar a
-       escolher as mesmas fotos) */
-    function enfileirar(novas) {
-      novas.forEach(function (file) {
-        filaFotos.lista.push({
-          file: file,
-          id: 'u_foto_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8)
-        });
+    /* retoma: pergunta ao servidor que nomes originais já lá estão, otimiza
+       só os que faltam (FASE A) e mete-os na fila de envio (FASE B).
+       Se fechares a aba, é só voltar a escolher as mesmas fotos. */
+    function enfileirarOtimizadas(prontas) {
+      /* nomes de envio únicos: IMG_1.CR3 + IMG_1.JPG dariam ambos "IMG_1.jpg"
+         (RAW+JPEG). Desambigua com " (2)", " (3)" — nunca calar uma foto. */
+      var usados = {};
+      filaFotos.lista.forEach(function (it) {
+        if (it.nomeEnvio) usados[String(it.nomeEnvio).toLowerCase()] = true;
       });
+      prontas.forEach(function (it) {
+        var base = String(it.nomeEnvio || 'foto.jpg');
+        var semExt = base.includes('.') ? base.slice(0, base.lastIndexOf('.')) : base;
+        var cand = base, i = 1;
+        while (usados[cand.toLowerCase()]) { i++; cand = semExt + ' (' + i + ').jpg'; }
+        usados[cand.toLowerCase()] = true;
+        it.nomeEnvio = cand;
+        if (it.meta) it.meta.nomeEnvio = cand;
+      });
+      /* dedupe pelo nome ORIGINAL completo (não pela chave sem extensão):
+         o mesmo ficheiro escolhido duas vezes sai; gémeos RAW+JPEG ficam */
+      var emFila = {};
+      filaFotos.lista.forEach(function (it) {
+        var n0 = it.meta ? it.meta.nome : (it.file && it.file.name);
+        emFila[String(n0 || '').toLowerCase()] = true;
+      });
+      var aMeter = prontas.filter(function (it) {
+        var n1 = it.meta ? it.meta.nome : (it.file && it.file.name);
+        var c = String(n1 || '').toLowerCase();
+        if (emFila[c]) return false;
+        emFila[c] = true;
+        return true;
+      });
+      var filaVazia = filaFotos.lista.length === 0;
+      aMeter.forEach(function (it) { filaFotos.lista.push(it); });
+      if (filaVazia) filaFotos.feitas = 0; /* arranque fresco; senão preserva */
+      filaFotos.total = filaFotos.feitas + filaFotos.lista.length;
+      if (!aMeter.length) {
+        toast('Estas fotografias já estão na fila ou no servidor. Nada a juntar.', 'info');
+        if (filaFotos.lista.length && !filaFotos.aCorrer && !filaFotos.parada) {
+          filaFotos.aCorrer = true;
+          processarFilaLotes();
+        }
+        return;
+      }
       if (!filaFotos.aCorrer) {
-        filaFotos.total = filaFotos.lista.length;
-        filaFotos.feitas = 0;
+        filaFotos.falhasSeguidas = 0;
         filaFotos.parada = false;
         filaFotos.aCorrer = true;
-        toast(novas.length + ' fotografias na fila de envio direto ao servidor.', 'info');
-      } else {
-        filaFotos.total = filaFotos.feitas + filaFotos.lista.length;
+        toast(aMeter.length + ' fotografias otimizadas na fila de envio.', 'info');
       }
       processarFilaLotes();
     }
     api('/galerias/' + encodeURIComponent(actual.id) + '/fotos-estado').then(function (est) {
       var jaLa = {};
-      (est.nomes || []).forEach(function (n) { jaLa[n] = true; });
+      (est.nomes || []).forEach(function (n) { jaLa[String(n).toLowerCase()] = true; });
       var novas = [];
       var repetidas = 0;
       lista.forEach(function (file) {
-        if (jaLa[file.name]) repetidas++;
+        if (jaLa[String(file.name).toLowerCase()]) repetidas++;
         else novas.push(file);
       });
       if (repetidas && !novas.length) {
         toast('Todas já estão no servidor (' + est.total + ' fotos). Nada a enviar.', 'ok');
         return;
       }
-      if (repetidas) toast(repetidas + ' já estavam no servidor — a enviar só as ' + novas.length + ' em falta.', 'info');
-      enfileirar(novas);
+      if (repetidas) toast(repetidas + ' já estavam no servidor — a otimizar e enviar só as ' + novas.length + ' em falta.', 'info');
+      otimizarFila(novas, enfileirarOtimizadas);
     }).catch(function () {
-      enfileirar(lista);
+      otimizarFila(lista, enfileirarOtimizadas);
     });
   });
 
@@ -1184,8 +1462,22 @@
     }
 
     /* passo 2: no upload direto, as fotos já vão para o servidor em lotes
-       assim que são escolhidas — aqui só se espera a fila terminar */
-    if (actual.passo === 2 && (actual.fotos.length || (filaFotos.aCorrer && filaFotos.lista.length))) {
+       assim que são escolhidas — aqui só se espera as filas terminar.
+       A guarda da otimização fica em cima de TUDO (não aninhada): durante a
+       Fase A pura, actual.fotos está vazio e filaFotos.aCorrer ainda é falso,
+       por isso a condição do passo 2 nem chegava a testá-la. */
+    if (filaOpts.aCorrer) {
+      toast('Aguarda a otimização terminar (' + filaOpts.feitas + '/' + filaOpts.total + ').', 'info');
+      return Promise.reject(new Error('otimização em curso'));
+    }
+    if (actual.passo === 2 && (actual.fotos.length || filaFotos.lista.length)) {
+      if (!filaFotos.aCorrer && filaFotos.lista.length && !filaFotos.parada) {
+        /* restos pausados (ex.: após falhas): retoma em vez de deixar
+           as fotos presas sem aviso */
+        filaFotos.falhasSeguidas = 0;
+        filaFotos.aCorrer = true;
+        processarFilaLotes();
+      }
       if (filaFotos.aCorrer) {
         toast('Aguarda o envio terminar (' + filaFotos.feitas + '/' + filaFotos.total + ').', 'info');
         return Promise.reject(new Error('envio em curso'));
