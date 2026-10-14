@@ -52,7 +52,7 @@ const FOTOS = path.join(DADOS, 'fotos');
 const CAPAS = path.join(DADOS, 'capas');
 
 const PORTA = parseInt(process.env.PORT, 10) || 3000;
-const WHATSAPP_FOTOGRAFO = normalizarWhats(process.env.WHATSAPP_NUMERO || process.env.WHATSAPP_FOTOGRAFO) || '244900000000';
+const WHATSAPP_FOTOGRAFO = normalizarWhats(process.env.WHATSAPP_NUMERO || process.env.WHATSAPP_FOTOGRAFO) || '244923000000';
 
 /* Configurações do Cloudflare R2 */
 const r2AccountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
@@ -1006,6 +1006,15 @@ app.get(rotasLanding, (req, res) => {
       html = scriptTag + html;
     }
   }
+  /* Número do WhatsApp (.env) disponível no front antes do funil.js correr */
+  try {
+    const tagWhats = '<script>window.__WHATSAPP=' + JSON.stringify(WHATSAPP_FOTOGRAFO) + ';window.__WHATSAPP_NUMERO=' + JSON.stringify(WHATSAPP_FOTOGRAFO) + ';</script>\n';
+    if (html.includes('<head>')) {
+      html = html.replace('<head>', '<head>\n  ' + tagWhats);
+    } else {
+      html = tagWhats + html;
+    }
+  } catch (e) {}
   /* sem isto o browser guarda a landing em cache e não mostra as
      alterações acabadas de publicar */
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
@@ -1068,6 +1077,13 @@ app.use(['/capas', '/elifotografo/capas', '/eli-fotografo/capas'], express.stati
 /* ---------------- API pública (galeria do cliente) ---------------- */
 
 const pub = express.Router();
+
+/* Número de WhatsApp do fotógrafo (vem do .env: WHATSAPP_NUMERO / WHATSAPP_FOTOGRAFO).
+   A landing page (index.html + funil.js) lê daqui para nunca usar número hardcoded. */
+pub.get('/config', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ whatsapp: WHATSAPP_FOTOGRAFO });
+});
 
 function normalizarTexto(s) {
   return String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');

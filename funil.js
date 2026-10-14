@@ -13,7 +13,20 @@
    ============================================================ */
 
 const PLANILHA_ENDPOINT = ''; // ex.: 'https://script.google.com/macros/s/AKfy.../exec'
-const NUM_WHATSAPP = '244900000000'; // TODO: número real do Elly
+/* Número do fotógrafo: vem do servidor via /api/pub/config (lê o .env).
+   O valor aqui é só fallback até o fetch responder. */
+var NUM_WHATSAPP = (typeof window !== 'undefined' && window.__WHATSAPP_NUMERO)
+  || (typeof window !== 'undefined' && window.__WHATSAPP) || '244923000000';
+
+if (typeof window !== 'undefined') {
+  fetch('/api/pub/config', { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      var n = d && d.whatsapp ? String(d.whatsapp).replace(/\D/g, '') : '';
+      if (n) { NUM_WHATSAPP = n; window.__WHATSAPP_NUMERO = n; }
+    })
+    .catch(function () {});
+}
 
 const TOTAL_PASSOS = 3;
 const CHAVE_LEADS = 'elly_leads';
@@ -333,7 +346,7 @@ form.addEventListener('submit', async e => {
   ].filter(Boolean).join('\n');
 
   document.getElementById('btnWhats').href =
-    `https://wa.me/${NUM_WHATSAPP}?text=${encodeURIComponent(texto)}`;
+    `https://wa.me/${(typeof window !== 'undefined' && window.__WHATSAPP_NUMERO) || NUM_WHATSAPP}?text=${encodeURIComponent(texto)}`;
 
   form.hidden = true;
   sucessoEl.hidden = false;

@@ -150,7 +150,7 @@
       if (msg) msg.textContent = 'Esta galeria expirou. O prazo de seleção terminou. Contacta o fotógrafo para reativar o link.';
       var btn = el('btnReativarWa');
       if (btn) {
-        var tel = digitos((d && d.whatsappFotografo) || '244923123456');
+        var tel = digitos((d && d.whatsappFotografo) || '244923000000');
         var textoWa = 'Olá! O link da minha galeria "' + ((d && d.nome) || '') + '" expirou. Podes reativar para eu concluir a seleção de fotografias?';
         btn.href = 'https://wa.me/' + tel + '?text=' + encodeURIComponent(textoWa);
       }
@@ -170,7 +170,7 @@
       if (msg) msg.textContent = 'Esta seleção já foi concluída e o link está fechado. Se precisares de alterar alguma coisa, contacta o fotógrafo para reativar o link.';
       var btn = el('btnReativarWa');
       if (btn) {
-        var tel = digitos((d && d.whatsappFotografo) || '244923123456');
+        var tel = digitos((d && d.whatsappFotografo) || '244923000000');
         var textoWa = 'Olá! Concluí a seleção da galeria "' + ((d && d.nome) || '') + '" mas preciso de falar contigo sobre ela. Podes ajudar-me?';
         btn.href = 'https://wa.me/' + tel + '?text=' + encodeURIComponent(textoWa);
       }

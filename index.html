@@ -369,7 +369,31 @@
   </footer>
 
   <!-- WHATSAPP FLUTUANTE -->
-  <a href="https://wa.me/244900000000?text=Oi%20Elly!%20Vi%20o%20teu%20trabalho%20e%20queria%20saber%20se%20tens%20a%20minha%20data." class="whatsapp" target="_blank" rel="noopener" aria-label="Falar pelo WhatsApp">☎</a>
+  <a href="https://wa.me/244923000000?text=Oi%20Elly!%20Vi%20o%20teu%20trabalho%20e%20queria%20saber%20se%20tens%20a%20minha%20data." class="whatsapp" id="btnWhatsFlutuante" target="_blank" rel="noopener" aria-label="Falar pelo WhatsApp">
+    <svg viewBox="0 0 32 32" width="30" height="30" fill="currentColor" aria-hidden="true"><path d="M16 3C9.38 3 4 8.38 4 15c0 2.29.65 4.42 1.78 6.24L4 27l5.92-1.7A11.9 11.9 0 0 0 16 27c6.62 0 12-5.38 12-12S22.62 3 16 3zm0 2c5.52 0 10 4.48 10 10s-4.48 10-10 10c-1.78 0-3.44-.47-4.88-1.28l-.35-.2-3.5 1 1-3.4-.22-.35A9.94 9.94 0 0 1 6 15c0-5.52 4.48-10 10-10zm-3.5 4.5c-.19 0-.5.07-.76.35-.27.28-1.02 1-1.02 2.44s1.05 2.83 1.2 3.02c.14.2 2.06 3.23 5.06 4.4 2.5.98 3 .79 3.55.74.55-.05 1.77-.72 2.02-1.42.25-.7.25-1.29.17-1.42-.07-.13-.27-.2-.57-.35-.3-.15-1.77-.87-2.05-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.15-1.14-.69-1.9-1.37-2.12-1.62-.22-.25-.02-.38.15-.55.14-.14.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.68-1.63-.94-2.23-.25-.6-.5-.52-.68-.53h-.59z"/></svg>
+  </a>
+
+  <script>
+    // Atualiza os links de WhatsApp com o número real vindo do servidor (.env).
+    (function () {
+      function soDigitos(v) { return String(v || '').replace(/\D/g, ''); }
+      function aplicar(num) {
+        num = soDigitos(num);
+        if (!num) return;
+        var flut = document.getElementById('btnWhatsFlutuante');
+        if (flut) {
+          var txt = 'Oi Elly! Vi o teu trabalho e queria saber se tens a minha data.';
+          flut.href = 'https://wa.me/' + num + '?text=' + encodeURIComponent(txt);
+        }
+        if (window.__WHATSAPP_NUMERO !== num) window.__WHATSAPP_NUMERO = num;
+      }
+      if (window.__WHATSAPP) aplicar(window.__WHATSAPP);
+      fetch('/api/pub/config', { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d && d.whatsapp) aplicar(d.whatsapp); })
+        .catch(function () {});
+    })();
+  </script>
 
   <script src="/funil.js"></script>
   <script src="/editor.js"></script>
