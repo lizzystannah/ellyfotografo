@@ -24,6 +24,13 @@ services:
       start_period: 15s
 
   # Se pretender correr MySQL localmente no Docker em vez de JSON ou serviço na cloud:
+  #   - descomente o serviço "mysql" abaixo;
+  #   - no .env use MYSQL_HOST="elly_fotografo_mysql" (o container_name) OU
+  #     MYSQL_HOST="mysql" (o nome do serviço) — os dois ficam na mesma network;
+  #   - se o MySQL estiver noutro projeto/stack, junte esse container à network
+  #     deste projeto (ou crie uma network externa comum). O erro
+  #     "getaddrinfo ENOTFOUND <nome>" indica que o nome não existe nessa rede.
+  # Sem MySQL, a app continua a funcionar com os ficheiros em ./dados.
   # mysql:
   #   image: mysql:8.0
   #   container_name: elly_fotografo_mysql

@@ -85,31 +85,136 @@ const mysqlPass = process.env.MYSQL_PASSWORD;
 const mysqlDb = process.env.MYSQL_DATABASE;
 const mysqlPort = parseInt(process.env.MYSQL_PORT || '3306', 10);
 
+/* O MySQL é opcional (sem ele a app vive dos JSON em ./dados), mas quando está
+   configurado tem de aguentar quedas: keep-alive nas ligações, uma query presa
+   nunca prende a página, e reconexão automática com backoff. Enquanto está
+   fora serve-se a memória/JSON e, quando volta, os dados fundem-se. */
+const MYSQL_TIMEOUT_PEDIDO = 5000;   /* ms por query (refresh/leitura) */
+const MYSQL_RETRY_MIN = 3000;
+const MYSQL_RETRY_MAX = 60000;
+
 let dbPool = null;
-let dbPronto = false; /* só sincroniza para o MySQL depois da carga inicial (evita apagar o banco com lista vazia) */
-if (mysqlHost && mysqlUser && mysqlDb) {
+let dbPronto = false;  /* carga inicial concluída (autoriza escritas) */
+let dbLigado = false;  /* ligação viva neste momento */
+let mysqlJaCarregou = false;
+let mysqlTentativaAtual = false;
+let mysqlTimerReconexao = null;
+let mysqlTentativas = 0;
+let mysqlUltimoErro = null;
+let mysqlUltimaLigacao = null;
+
+function criarPoolMySQL() {
+  return mysql.createPool({
+    host: mysqlHost,
+    user: mysqlUser,
+    password: mysqlPass || '',
+    database: mysqlDb,
+    port: mysqlPort,
+    waitForConnections: true,
+    connectionLimit: 10,
+    maxIdle: 5,
+    idleTimeout: 60000,
+    queueLimit: 0,
+    /* sem isto um host que não resolve/aceita pode deixar pedidos pendurados */
+    connectTimeout: 10000,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000
+  });
+}
+
+function mysqlDisponivel() {
+  return !!(dbPool && dbLigado && dbPronto);
+}
+
+/* erros que significam "a base de dados caiu / o host mudou", não "SQL errado" */
+function erroDeLigacaoMySQL(e) {
+  const c = String((e && (e.code || e.errno)) || '');
+  return /ECONNREFUSED|ECONNRESET|EPIPE|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|ENOTFOUND|EAI_AGAIN|PROTOCOL_CONNECTION_LOST|PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR|PROTOCOL_SEQUENCE_TIMEOUT|PROTOCOL_PACKETS_OUT_OF_ORDER|ER_CON_COUNT_ERROR|ER_TOO_MANY_USER_CONNECTIONS|ER_SERVER_SHUTDOWN|ER_CLIENT_INTERACTION_TIMEOUT|FATAL_ERROR/.test(c);
+}
+
+function agendarReconexaoMySQL(ms) {
+  if (mysqlTimerReconexao) return;
+  const espera = Math.max(MYSQL_RETRY_MIN, Math.min(MYSQL_RETRY_MAX, ms || MYSQL_RETRY_MIN));
+  mysqlTimerReconexao = setTimeout(() => {
+    mysqlTimerReconexao = null;
+    ligarMySQL();
+  }, espera);
+  if (mysqlTimerReconexao.unref) mysqlTimerReconexao.unref();
+}
+
+/* chamado quando uma query falha por ligação: deixa de tentar até reconectar
+   (evita 5s de espera em cada pedido enquanto o banco está fora) */
+function marcarMySQLEmBaixo(e) {
+  if (!dbLigado) return;
+  dbLigado = false;
+  mysqlUltimoErro = (e && e.message) || String(e || 'ligação perdida');
+  console.warn('Aviso MySQL: ligação perdida (' + mysqlUltimoErro + '). A servir dados locais; a tentar reconectar...');
   try {
-    dbPool = mysql.createPool({
-      host: mysqlHost,
-      user: mysqlUser,
-      password: mysqlPass || '',
-      database: mysqlDb,
-      port: mysqlPort,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0
-    });
-    console.log('✓ Conexão com MySQL configurada.');
-    inicializarMySQL();
+    const velho = dbPool;
+    dbPool = criarPoolMySQL();   /* pool novo: volta a resolver o DNS (IP do container pode mudar) */
+    velho.end().catch(() => {});
+  } catch (err) {}
+  agendarReconexaoMySQL(MYSQL_RETRY_MIN);
+}
+
+function falhaMySQL(contexto) {
+  return function (e) {
+    if (erroDeLigacaoMySQL(e)) marcarMySQLEmBaixo(e);
+    console.error('ERRO ' + contexto + ':', e.message);
+  };
+}
+
+async function ligarMySQL() {
+  if (!mysqlHost || !mysqlUser || !mysqlDb) return;
+  if (!dbPool) dbPool = criarPoolMySQL();
+  if (mysqlTentativaAtual) return;
+  mysqlTentativaAtual = true;
+  mysqlTentativas++;
+  try {
+    await dbPool.query({ sql: 'SELECT 1', timeout: MYSQL_TIMEOUT_PEDIDO });
+    await inicializarMySQL();
+    await carregarDoMySQL();
+    dbPronto = true;
+    dbLigado = true;
+    mysqlJaCarregou = true;
+    try { await enviarLapidesPendentesMySQL(); } catch (e) {
+      if (erroDeLigacaoMySQL(e)) throw e;
+      console.warn('Aviso ao enviar lápides pendentes ao MySQL:', e.message);
+    }
+    mysqlTentativas = 0;
+    mysqlUltimoErro = null;
+    mysqlUltimaLigacao = new Date().toISOString();
+    if (mysqlTimerReconexao) { clearTimeout(mysqlTimerReconexao); mysqlTimerReconexao = null; }
+    console.log('✓ MySQL ligado (' + mysqlHost + ':' + mysqlPort + ') e dados sincronizados.');
   } catch (e) {
-    console.warn('Aviso MySQL:', e.message);
+    dbLigado = false;
+    mysqlUltimoErro = (e && e.message) || String(e || '');
+    const espera = Math.min(MYSQL_RETRY_MAX, MYSQL_RETRY_MIN * Math.pow(2, Math.min(mysqlTentativas - 1, 5)));
+    console.warn('Aviso MySQL (' + mysqlHost + ':' + mysqlPort + '): ' + mysqlUltimoErro +
+      '. A servir dados locais; nova tentativa em ' + Math.round(espera / 1000) + 's.');
+    try {
+      const velho = dbPool;
+      dbPool = criarPoolMySQL();
+      velho.end().catch(() => {});
+    } catch (err) { dbPool = null; }
+    agendarReconexaoMySQL(espera);
+  } finally {
+    mysqlTentativaAtual = false;
+    if (!dbLigado && !mysqlTimerReconexao) agendarReconexaoMySQL(MYSQL_RETRY_MIN);
   }
+}
+
+if (mysqlHost && mysqlUser && mysqlDb) {
+  console.log('✓ MySQL configurado (' + mysqlHost + ':' + mysqlPort + '), a ligar...');
+  dbPool = criarPoolMySQL();
+  ligarMySQL();
 }
 
 async function inicializarMySQL() {
   if (!dbPool) return;
-  try {
-    await dbPool.query(`
+  /* Corre a cada (re)ligação. Os erros de ligação sobem para ligarMySQL()
+     agendar nova tentativa; só as colunas opcionais falham em silêncio. */
+  await dbPool.query(`
       CREATE TABLE IF NOT EXISTS galerias (
         id VARCHAR(100) PRIMARY KEY,
         slug VARCHAR(100) NOT NULL,
@@ -180,11 +285,7 @@ async function inicializarMySQL() {
     try {
       await dbPool.query(`ALTER TABLE galerias_apagadas ADD COLUMN slug VARCHAR(100);`);
     } catch (eCol) {}
-    console.log('✓ Tabelas do MySQL inicializadas com sucesso.');
-    await carregarDoMySQL();
-  } catch (e) {
-    console.warn('Aviso ao criar tabelas MySQL:', e.message);
-  }
+  console.log('✓ Tabelas do MySQL verificadas/criadas.');
 }
 
 /* ---------------- MySQL como fonte persistente (galerias + clientes) ---------------- */
@@ -233,75 +334,111 @@ function linhaParaCliente(r) {
 
 async function carregarDoMySQL() {
   if (!dbPool) return;
-  try {
-    const [linhasG] = await dbPool.query('SELECT * FROM galerias ORDER BY criada_em DESC, id DESC');
-    const [linhasC] = await dbPool.query('SELECT * FROM clientes');
-    if (Array.isArray(linhasG) && linhasG.length) {
-      galerias = linhasG.map(linhaParaGaleria);
+  /* recuperacao=true quando já houve carga antes (a ligação caiu e voltou):
+     funde-se com a memória — o que foi feito offline não pode desaparecer. */
+  const recuperacao = mysqlJaCarregou;
+  const q = (sql, params) => dbPool.query({ sql, timeout: MYSQL_TIMEOUT_PEDIDO }, params);
+  const [linhasG] = await q('SELECT * FROM galerias ORDER BY criada_em DESC, id DESC');
+  const [linhasC] = await q('SELECT * FROM clientes');
+  if (Array.isArray(linhasG)) {
+    if (!recuperacao && linhasG.length) {
+      /* funde (em vez de substituir): uma galeria criada antes da ligação
+         inicial terminar não pode desaparecer da memória */
+      for (const r of linhasG) aplicarLinhaFresca(linhaParaGaleria(r));
       try { gravarJson('galerias.json', galerias); } catch (e) {}
       console.log(`✓ Galerias carregadas do MySQL (${galerias.length}).`);
-    } else if (Array.isArray(linhasG) && galerias.length) {
+    } else if (!recuperacao && galerias.length) {
       /* banco vazio mas JSON local tem dados (primeira migração): sobe o JSON para o banco */
       await sincronizarGaleriasMySQL();
       console.log(`✓ Galerias migradas do JSON para o MySQL (${galerias.length}).`);
+    } else if (recuperacao) {
+      for (const r of linhasG) aplicarLinhaFresca(linhaParaGaleria(r));
+      console.log(`✓ MySQL de volta: galerias reconciliadas (${galerias.length}).`);
     }
-    /* lápides no arranque: um JSON antigo (volume anterior) não pode
-       ressuscitar galerias já apagadas */
-    try {
-      const [laps0] = await dbPool.query('SELECT id FROM galerias_apagadas');
-      if (Array.isArray(laps0) && laps0.length && galerias.length) {
-        const ids = new Set(laps0.map(r => r.id));
-        const antes = galerias.length;
-        galerias = galerias.filter(x => !ids.has(x.id));
-        if (galerias.length !== antes) {
-          try { gravarJson('galerias.json', galerias); } catch (e) {}
-          console.log(`✓ Lápides aplicadas no arranque (${antes - galerias.length} removida(s)).`);
-        }
+  }
+  /* lápides no arranque: um JSON antigo (volume anterior) não pode
+     ressuscitar galerias já apagadas */
+  try {
+    const [laps0] = await q('SELECT id FROM galerias_apagadas');
+    const ids = new Set((Array.isArray(laps0) ? laps0 : []).map(r => r.id));
+    apagadasPendentes.forEach(l => { if (l && l.id) ids.add(l.id); });
+    if (ids.size && galerias.length) {
+      const antes = galerias.length;
+      galerias = galerias.filter(x => !ids.has(x.id));
+      if (galerias.length !== antes) {
+        try { gravarJson('galerias.json', galerias); } catch (e) {}
+        console.log(`✓ Lápides aplicadas no arranque (${antes - galerias.length} removida(s)).`);
       }
-    } catch (e) {}
-    if (Array.isArray(linhasC) && linhasC.length) {
-      clientes = linhasC.map(linhaParaCliente);
-      try { gravarJson('clientes.json', clientes); } catch (e) {}
-      console.log(`✓ Clientes carregados do MySQL (${clientes.length}).`);
-    } else if (Array.isArray(linhasC) && clientes.length) {
-      await sincronizarClientesMySQL();
     }
-    /* landing publicada + templates (aba Landing Page do painel) */
+  } catch (e) {}
+  /* empurra a memória para o banco: o que foi criado/editado offline (ou
+     antes da carga inicial terminar) não pode ficar só no JSON */
+  if (galerias.length) {
     try {
-      const [linhasE] = await dbPool.query('SELECT * FROM landing_estado WHERE id = 1 LIMIT 1');
-      const rowE = Array.isArray(linhasE) && linhasE[0];
-      let estadoDb = null;
-      if (rowE && rowE.estado) {
-        try { estadoDb = typeof rowE.estado === 'string' ? JSON.parse(rowE.estado) : rowE.estado; } catch (e) { estadoDb = null; }
-      }
-      if (estadoDb && temConteudoUtil(estadoDb)) {
-        estadoLanding = estadoDb;
-        try { gravarJson('landing.json', estadoLanding); } catch (e) {}
-        console.log('✓ Landing publicada carregada do MySQL.');
-      } else if (temConteudoUtil(estadoLanding)) {
-        await sincronizarLandingMySQL();
-        console.log('✓ Landing publicada migrada do JSON para o MySQL.');
-      }
+      await sincronizarGaleriasMySQL();
     } catch (e) {
-      console.warn('Aviso ao carregar landing do MySQL:', e.message);
+      if (erroDeLigacaoMySQL(e)) throw e;
+      console.warn('Aviso ao reconciliar galerias com o MySQL:', e.message);
     }
-    try {
-      const [linhasT] = await dbPool.query('SELECT * FROM landing_templates');
-      if (Array.isArray(linhasT) && linhasT.length) {
-        templatesLanding = linhasT.map(linhaParaTemplate);
-        try { gravarJson('templates_landing.json', templatesLanding); } catch (e) {}
-        console.log(`✓ Templates da landing carregados do MySQL (${templatesLanding.length}).`);
-      } else if (templatesLanding.length) {
-        await sincronizarTemplatesMySQL();
-        console.log(`✓ Templates da landing migrados do JSON para o MySQL (${templatesLanding.length}).`);
-      }
-    } catch (e) {
-      console.warn('Aviso ao carregar templates do MySQL:', e.message);
+  }
+  if (Array.isArray(linhasC)) {
+    for (const r of linhasC) {
+      const c = linhaParaCliente(r);
+      if (!clientes.some(x => x.id === c.id)) clientes.push(c);
     }
-    dbPronto = true;
+    if (clientes.length) {
+      try { await sincronizarClientesMySQL(); } catch (e) { if (erroDeLigacaoMySQL(e)) throw e; }
+    }
+    try { gravarJson('clientes.json', clientes); } catch (e) {}
+    if (!recuperacao) console.log(`✓ Clientes carregados do MySQL (${clientes.length}).`);
+  } else if (clientes.length) {
+    await sincronizarClientesMySQL();
+  }
+  /* landing publicada + templates (aba Landing Page do painel) */
+  try {
+    const [linhasE] = await q('SELECT * FROM landing_estado WHERE id = 1 LIMIT 1');
+    const rowE = Array.isArray(linhasE) && linhasE[0];
+    let estadoDb = null;
+    if (rowE && rowE.estado) {
+      try { estadoDb = typeof rowE.estado === 'string' ? JSON.parse(rowE.estado) : rowE.estado; } catch (e) { estadoDb = null; }
+    }
+    /* quem foi escrito mais recentemente manda: mtime do landing.json
+       (gravado antes de cada sync) contra atualizado_em do banco */
+    let stampLocal = 0;
+    try { stampLocal = fs.statSync(path.join(DADOS, 'landing.json')).mtimeMs; } catch (e) {}
+    const stampDb = rowE && rowE.atualizado_em ? Date.parse(rowE.atualizado_em) : 0;
+    const dbTem = !!(estadoDb && temConteudoUtil(estadoDb));
+    const localTem = temConteudoUtil(estadoLanding);
+    if (dbTem && (!localTem || (stampDb && stampDb > stampLocal))) {
+      estadoLanding = estadoDb;
+      try { gravarJson('landing.json', estadoLanding); } catch (e) {}
+      console.log('✓ Landing publicada carregada do MySQL.');
+    } else if (localTem) {
+      await sincronizarLandingMySQL();
+      if (!recuperacao) console.log('✓ Landing publicada migrada do JSON para o MySQL.');
+    }
   } catch (e) {
-    console.warn('Aviso ao carregar do MySQL (segue com JSON local):', e.message);
-    dbPronto = true; /* permite sincronizar nas próximas gravações */
+    console.warn('Aviso ao carregar landing do MySQL:', e.message);
+  }
+  try {
+    const [linhasT] = await q('SELECT * FROM landing_templates');
+    if (Array.isArray(linhasT) && linhasT.length) {
+      /* funde por id: fica a versão mais recente de cada template */
+      for (const r of linhasT) {
+        const t = linhaParaTemplate(r);
+        const local = templatesLanding.find(x => x.id === t.id);
+        if (!local) templatesLanding.push(t);
+        else if (String(t.atualizadoEm || '') > String(local.atualizadoEm || '')) Object.assign(local, t);
+      }
+      try { await sincronizarTemplatesMySQL(); } catch (e) {}
+      try { gravarJson('templates_landing.json', templatesLanding); } catch (e) {}
+      if (!recuperacao) console.log(`✓ Templates da landing carregados do MySQL (${templatesLanding.length}).`);
+    } else if (templatesLanding.length) {
+      await sincronizarTemplatesMySQL();
+      console.log(`✓ Templates da landing migrados do JSON para o MySQL (${templatesLanding.length}).`);
+    }
+  } catch (e) {
+    console.warn('Aviso ao carregar templates do MySQL:', e.message);
   }
 }
 
@@ -437,15 +574,16 @@ function aplicarLinhaFresca(fresca) {
 }
 
 async function refrescarGaleriaDoMySQL(chave) {
-  if (!dbPool || !dbPronto || !chave) return null;
+  if (!mysqlDisponivel() || !chave) return null;
   try {
     /* LEFT JOIN com as lápides: uma linha ressuscitada no banco (ou com
        id≠slug legado) nunca volta à memória */
-    const [linhas] = await dbPool.query(
-      `SELECT g.*, (t.id IS NOT NULL) AS apagada FROM galerias g
+    const [linhas] = await dbPool.query({
+      sql: `SELECT g.*, (t.id IS NOT NULL) AS apagada FROM galerias g
        LEFT JOIN galerias_apagadas t ON t.id = g.id OR t.slug = g.slug
-       WHERE g.id = ? OR g.slug = ? LIMIT 1`, [chave, chave]
-    );
+       WHERE g.id = ? OR g.slug = ? LIMIT 1`,
+      timeout: MYSQL_TIMEOUT_PEDIDO
+    }, [chave, chave]);
     if (linhas && linhas[0]) {
       if (linhas[0].apagada) {
         galerias = galerias.filter(x => x.id !== linhas[0].id && x.slug !== chave);
@@ -454,31 +592,34 @@ async function refrescarGaleriaDoMySQL(chave) {
       return aplicarLinhaFresca(linhaParaGaleria(linhas[0]));
     }
     /* sem linha: ou nunca existiu, ou foi apagada — a lápide decide */
-    const [laps] = await dbPool.query(
-      'SELECT id FROM galerias_apagadas WHERE id = ? OR slug = ? LIMIT 1', [chave, chave]
-    );
+    const [laps] = await dbPool.query({
+      sql: 'SELECT id FROM galerias_apagadas WHERE id = ? OR slug = ? LIMIT 1',
+      timeout: MYSQL_TIMEOUT_PEDIDO
+    }, [chave, chave]);
     if (laps && laps[0]) {
       galerias = galerias.filter(x => x.id !== laps[0].id && x.slug !== chave);
     }
   } catch (e) {
+    if (erroDeLigacaoMySQL(e)) marcarMySQLEmBaixo(e);
     console.error('ERRO refresh galeria MySQL (a servir memória, pode estar stale):', e.message);
   }
   return null;
 }
 
 async function refrescarGaleriasDoMySQL() {
-  if (!dbPool || !dbPronto) return;
+  if (!mysqlDisponivel()) return;
   try {
-    const [linhas] = await dbPool.query('SELECT * FROM galerias ORDER BY criada_em DESC, id DESC');
+    const [linhas] = await dbPool.query({ sql: 'SELECT * FROM galerias ORDER BY criada_em DESC, id DESC', timeout: MYSQL_TIMEOUT_PEDIDO });
     if (Array.isArray(linhas) && linhas.length) {
       for (const r of linhas) aplicarLinhaFresca(linhaParaGaleria(r));
     }
-    const [laps] = await dbPool.query('SELECT id FROM galerias_apagadas');
+    const [laps] = await dbPool.query({ sql: 'SELECT id FROM galerias_apagadas', timeout: MYSQL_TIMEOUT_PEDIDO });
     if (Array.isArray(laps) && laps.length) {
       const ids = new Set(laps.map(r => r.id));
       galerias = galerias.filter(x => !ids.has(x.id));
     }
   } catch (e) {
+    if (erroDeLigacaoMySQL(e)) marcarMySQLEmBaixo(e);
     console.error('ERRO refresh galerias MySQL (a servir memória, pode estar stale):', e.message);
   }
 }
@@ -528,6 +669,31 @@ let clientes = lerJson('clientes.json', []);
 let estadoLanding = lerJson('landing.json', null);
 let templatesLanding = lerJson('templates_landing.json', []);
 
+/* Lápides que não chegaram ao MySQL (galeria apagada com a base fora do ar):
+   ficam no JSON e são enviadas na próxima ligação — senão a galeria voltava. */
+let apagadasPendentes = lerJson('galerias_apagadas_pendentes.json', []);
+if (!Array.isArray(apagadasPendentes)) apagadasPendentes = [];
+
+function registarLapidePendente(g) {
+  if (!g || !g.id) return;
+  if (apagadasPendentes.some(x => x.id === g.id)) return;
+  apagadasPendentes.push({ id: g.id, slug: g.slug || null, apagadoEm: new Date().toISOString() });
+  try { gravarJson('galerias_apagadas_pendentes.json', apagadasPendentes); } catch (e) {}
+}
+
+async function enviarLapidesPendentesMySQL() {
+  if (!mysqlDisponivel() || !apagadasPendentes.length) return;
+  const pendentes = apagadasPendentes.slice();
+  for (const l of pendentes) {
+    await dbPool.query({
+      sql: 'INSERT INTO galerias_apagadas (id, slug, apagado_em) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE slug=VALUES(slug), apagado_em=VALUES(apagado_em)',
+      timeout: MYSQL_TIMEOUT_PEDIDO
+    }, [l.id, l.slug || null, l.apagadoEm || new Date().toISOString()]);
+  }
+  apagadasPendentes = apagadasPendentes.filter(x => !pendentes.some(l => l.id === x.id));
+  try { gravarJson('galerias_apagadas_pendentes.json', apagadasPendentes); } catch (e) {}
+}
+
 // Se existirem alterações guardadas mas ainda nenhum template, cria o primeiro automaticamente
 if (!Array.isArray(templatesLanding)) templatesLanding = [];
 if (templatesLanding.length === 0 && estadoLanding && typeof estadoLanding === 'object' && Object.keys(estadoLanding).length > 0) {
@@ -543,35 +709,42 @@ if (templatesLanding.length === 0 && estadoLanding && typeof estadoLanding === '
 
 const guardarGalerias = () => {
   gravarJson('galerias.json', galerias);
-  if (dbPool && dbPronto) {
-    syncGaleriasNQ().catch(e => console.error('ERRO sync galerias MySQL (memória e banco divergiram):', e.message));
+  if (mysqlDisponivel()) {
+    syncGaleriasNQ().catch(falhaMySQL('sync galerias MySQL (memória e banco divergiram)'));
   }
 };
 /* escrita durável: grava JSON e ESPERA o sync do MySQL pela fila, por ordem.
    Usada nas operações que mudam finalizada/validade — o 200 devolvido
-   significa que o banco já tem o novo estado (reativar nunca se perde). */
+   significa que o banco já tem o novo estado (reativar nunca se perde).
+   Se o MySQL estiver fora, o JSON já é a fonte de verdade: a escrita fica
+   pendente e é empurrada para o banco quando a ligação voltar. */
 async function persistirGaleriasDuravel() {
   gravarJson('galerias.json', galerias);
-  if (dbPool && dbPronto) {
-    await syncGaleriasNQ();
+  if (mysqlDisponivel()) {
+    try {
+      await syncGaleriasNQ();
+    } catch (e) {
+      if (!erroDeLigacaoMySQL(e)) throw e;
+      marcarMySQLEmBaixo(e);
+    }
   }
 }
 const guardarClientes = () => {
   gravarJson('clientes.json', clientes);
-  if (dbPool && dbPronto) {
-    sincronizarClientesMySQL().catch(e => console.error('ERRO sync clientes MySQL (memória e banco divergiram):', e.message));
+  if (mysqlDisponivel()) {
+    sincronizarClientesMySQL().catch(falhaMySQL('sync clientes MySQL (memória e banco divergiram)'));
   }
 };
 const guardarEstadoLanding = () => {
   gravarJson('landing.json', estadoLanding);
-  if (dbPool && dbPronto) {
-    sincronizarLandingMySQL().catch(e => console.error('ERRO sync landing MySQL (memória e banco divergiram):', e.message));
+  if (mysqlDisponivel()) {
+    sincronizarLandingMySQL().catch(falhaMySQL('sync landing MySQL (memória e banco divergiram)'));
   }
 };
 const guardarTemplatesLanding = () => {
   gravarJson('templates_landing.json', templatesLanding);
-  if (dbPool && dbPronto) {
-    sincronizarTemplatesMySQL().catch(e => console.error('ERRO sync templates MySQL (memória e banco divergiram):', e.message));
+  if (mysqlDisponivel()) {
+    sincronizarTemplatesMySQL().catch(falhaMySQL('sync templates MySQL (memória e banco divergiram)'));
   }
 };
 
@@ -962,8 +1135,11 @@ app.get(['/health', '/api/health'], (req, res) => {
     uptime: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
     r2Ativo: !!(r2Client && r2Bucket),
-    mysqlAtivo: !!dbPool,
+    mysqlConfigurado: !!dbPool,
+    mysqlAtivo: !!dbLigado,
     mysqlPronto: !!dbPronto,
+    mysqlUltimoErro: mysqlUltimoErro,
+    mysqlUltimaLigacao: mysqlUltimaLigacao,
     totalGalerias: galerias.length,
     totalTemplates: templatesLanding.length
   });
@@ -1240,6 +1416,25 @@ api.use(exigirSessao);
 
 api.get('/', (req, res) => res.json({ ok: true }));
 
+/* estado do MySQL no painel + reconexão manual (sem esperar pelo backoff) */
+api.get('/mysql/estado', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    configurado: !!dbPool,
+    ligado: !!dbLigado,
+    pronto: !!dbPronto,
+    host: mysqlHost || null,
+    porta: mysqlPort,
+    ultimoErro: mysqlUltimoErro,
+    ultimaLigacao: mysqlUltimaLigacao,
+    tentativas: mysqlTentativas
+  });
+});
+api.post('/mysql/reconectar', async (req, res) => {
+  try { await ligarMySQL(); } catch (e) {}
+  res.json({ ligado: !!dbLigado, pronto: !!dbPronto, ultimoErro: mysqlUltimoErro });
+});
+
 /* ---- galerias ---- */
 
 api.get('/galerias', async (req, res) => {
@@ -1277,8 +1472,8 @@ api.post('/galerias', async (req, res) => {
   galerias.unshift(galeria);
   guardarGalerias();
   /* defesa: um id recém-criado nunca deve ter lápide (colisão teórica) */
-  if (dbPool && dbPronto) {
-    dbPool.query('DELETE FROM galerias_apagadas WHERE id = ?', [galeria.id]).catch(() => {});
+  if (mysqlDisponivel()) {
+    dbPool.query({ sql: 'DELETE FROM galerias_apagadas WHERE id = ?', timeout: MYSQL_TIMEOUT_PEDIDO }, [galeria.id]).catch(() => {});
   }
   res.status(201).json(publicaGaleria(galeria));
 });
@@ -1352,17 +1547,23 @@ api.delete('/galerias/:id', async (req, res) => {
     await naFilaSyncGalerias(async () => {
       /* apaga a linha e grava a lápide na mesma unidade ordenada: nenhuma
          instância volta a ressuscitar esta galeria */
-      if (dbPool && dbPronto) {
-        await dbPool.query('DELETE FROM galerias WHERE id = ?', [g.id]);
-        await dbPool.query(
-          'INSERT INTO galerias_apagadas (id, slug, apagado_em) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE slug=VALUES(slug), apagado_em=VALUES(apagado_em)',
-          [g.id, g.slug, new Date().toISOString()]
-        );
-      }
+      if (!mysqlDisponivel()) { registarLapidePendente(g); return; }
+      await dbPool.query('DELETE FROM galerias WHERE id = ?', [g.id]);
+      await dbPool.query(
+        'INSERT INTO galerias_apagadas (id, slug, apagado_em) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE slug=VALUES(slug), apagado_em=VALUES(apagado_em)',
+        [g.id, g.slug, new Date().toISOString()]
+      );
     });
   } catch (e) {
-    console.error('ERRO ao apagar galeria no banco:', e.message);
-    return res.status(500).json({ erro: 'Não consegui apagar no banco de dados. Tenta de novo.' });
+    if (erroDeLigacaoMySQL(e)) {
+      /* a galeria já saiu da memória/JSON: guarda a lápide para o MySQL */
+      marcarMySQLEmBaixo(e);
+      registarLapidePendente(g);
+      console.warn('Aviso: MySQL fora ao apagar galeria; lápide guardada para enviar depois.');
+    } else {
+      console.error('ERRO ao apagar galeria no banco:', e.message);
+      return res.status(500).json({ erro: 'Não consegui apagar no banco de dados. Tenta de novo.' });
+    }
   }
   try { fs.rmSync(path.join(FOTOS, g.slug), { recursive: true, force: true }); } catch (e) {}
   try { if (g.capa && g.capa.startsWith('/capas/')) fs.rmSync(path.join(CAPAS, path.basename(g.capa)), { force: true }); } catch (e) {}
