@@ -245,6 +245,12 @@
     return { t: 'A aguardar cliente', c: 'e-aguardar' };
   }
 
+  /* A validade é o prazo para CONCLUIR a seleção. Depois de concluída, a
+     galeria nunca conta como expirada — fica fechada/concluída. */
+  function estaConcluida(g) {
+    return !!(g && g.selecao && g.selecao.finalizada);
+  }
+
   function copiarTexto(txt) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       return navigator.clipboard.writeText(txt).catch(function () {
@@ -270,8 +276,9 @@
     alvo.innerHTML = galerias.map(function (g) {
       var capa = g.capa ? 'style="background-image:url(' + esc(g.capa) + ')"' : '';
       var est = estadoDe(g);
-      var expirou = g.expiraEm && Date.parse(g.expiraEm) < Date.now();
-      var tempoExpira = tempoRestanteExpira(g.expiraEm);
+      var concluida = estaConcluida(g);
+      var expirou = !concluida && g.expiraEm && Date.parse(g.expiraEm) < Date.now();
+      var tempoExpira = concluida ? 'seleção concluída' : tempoRestanteExpira(g.expiraEm);
 
       var iconeCadeado = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>';
       var iconeGlobo = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>';
@@ -285,10 +292,10 @@
         ? 'Olá ' + g.cliente.nome + '! A tua galeria de seleção já está pronta:\n' +
           link + '\n\n📱 WhatsApp: ' + (g.cliente.whatsapp || '') +
           '\n🔑 Palavra-passe: ' + senha +
-          '\n⏳ ' + (expirou ? 'Expirou (' + tempoExpira + ')' : 'Disponível: ' + tempoExpira) + '.'
+          '\n⏳ ' + (concluida ? 'Seleção concluída' : (expirou ? 'Expirou (' + tempoExpira + ')' : 'Disponível: ' + tempoExpira)) + '.'
         : 'Galeria de seleção:\n' + link +
           '\n🔑 Palavra-passe: ' + senha +
-          '\n⏳ ' + (expirou ? 'Expirou (' + tempoExpira + ')' : 'Disponível: ' + tempoExpira) + '.';
+          '\n⏳ ' + (concluida ? 'Seleção concluída' : (expirou ? 'Expirou (' + tempoExpira + ')' : 'Disponível: ' + tempoExpira)) + '.';
       var podeEnviar = !!(g.cliente && g.cliente.whatsapp);
 
       var iconeOlhoPequeno = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
@@ -363,7 +370,9 @@
           (gAlvo.cliente && gAlvo.cliente.whatsapp ? '📱 WhatsApp: ' + gAlvo.cliente.whatsapp : ''),
           '🔗 Link: ' + linkAcesso,
           '🔑 Palavra-passe: ' + senhaAcesso,
-          '⏳ ' + (Date.parse(gAlvo.expiraEm) < Date.now() ? 'Expirou (' + tempoRestanteExpira(gAlvo.expiraEm) + ')' : 'Disponível: ' + tempoRestanteExpira(gAlvo.expiraEm) + ' (até ' + dataCurta(gAlvo.expiraEm) + ')')
+          estaConcluida(gAlvo)
+            ? '⏳ Seleção concluída'
+            : '⏳ ' + (Date.parse(gAlvo.expiraEm) < Date.now() ? 'Expirou (' + tempoRestanteExpira(gAlvo.expiraEm) + ')' : 'Disponível: ' + tempoRestanteExpira(gAlvo.expiraEm) + ' (até ' + dataCurta(gAlvo.expiraEm) + ')')
         ].filter(Boolean).join('\n');
 
         copiarTexto(textoCopiar);
@@ -1622,7 +1631,8 @@
   function abrirDetalhe(g) {
     galeriaDetalhe = g;
     el('dNome').textContent = g.nome;
-    var expirou = g.expiraEm && Date.parse(g.expiraEm) < Date.now();
+    var concluida = estaConcluida(g);
+    var expirou = !concluida && g.expiraEm && Date.parse(g.expiraEm) < Date.now();
     var rotulo = ROTULO_ESTADO[g.estado] || '—';
     var classePill = 'e-aguardar';
     if (g.estado === 'concluida') classePill = 'e-concluida';
@@ -1631,7 +1641,7 @@
     if (expirou) classePill = 'e-expirada';
     el('dEstado').innerHTML =
       '<span class="det-estado-pill ' + classePill + '">' + esc(expirou ? 'Expirada' : rotulo) + '</span>' +
-      '<span> · ' + (expirou ? 'expirou ' : 'expira ') + dataCurta(g.expiraEm) +
+      '<span> · ' + (concluida ? 'seleção concluída' : (expirou ? 'expirou ' : 'expira ') + dataCurta(g.expiraEm)) +
       ' · ' + (g.privada ? 'privada' : 'pública') + '</span>';
     el('dTotal').textContent = g.fotos.length;
     el('dSemFotos').hidden = g.fotos.length > 0;
@@ -1652,7 +1662,7 @@
       ['Fotos contratadas', g.cliente && g.cliente.fotosContratadas ? esc(g.cliente.fotosContratadas) : '—'],
       ['Preço por foto extra', g.cliente && g.cliente.precoExtra ? esc(g.cliente.precoExtra) + ' Kz' : '—'],
       ['Link de acesso', '<a href="' + esc(linkAcesso) + '" target="_blank" rel="noopener">' + esc(linkAcesso) + '</a><button type="button" class="det-link-copiar" id="dCopiarLink">Copiar</button>'],
-      ['Validade', (g.expiraEm ? dataCurta(g.expiraEm) : '—') + (expirou ? ' <b style="color:var(--verm);">(Expirada)</b>' : '')],
+      ['Validade', (g.expiraEm ? dataCurta(g.expiraEm) : '—') + (concluida ? ' <b style="color:#15803d;">(Concluída)</b>' : (expirou ? ' <b style="color:var(--verm);">(Expirada)</b>' : ''))],
       ['Criada em', dataCurta(g.criadaEm)]
     ].map(function (l) { return '<dt>' + l[0] + '</dt><dd>' + l[1] + '</dd>'; }).join('');
     var btnCopiar = el('dCopiarLink');

@@ -1100,9 +1100,20 @@ function estadoDe(g) {
   return 'a_aguardar';
 }
 
+/* O prazo de expiração é o prazo para CONCLUIR a seleção. Assim que a
+   seleção é finalizada a galeria deixa de poder expirar: fica fechada
+   (concluída) para sempre, independentemente da data de validade. */
+function galeriaConcluida(g) {
+  return !!(g && g.selecao && g.selecao.finalizada);
+}
+function galeriaExpirada(g) {
+  if (galeriaConcluida(g)) return false;
+  return !!(g.expiraEm && Date.parse(g.expiraEm) < Date.now());
+}
+
 function publicaGaleria(g) {
   const c = clienteDe(g);
-  const expirada = !!(g.expiraEm && Date.parse(g.expiraEm) < Date.now());
+  const expirada = galeriaExpirada(g);
   const senha = g.senha || (c && c.senha) || 'ellyfotografo';
   return Object.assign({}, g, {
     cliente: c,
@@ -1220,7 +1231,7 @@ app.get(rotasGaleria, async (req, res) => {
   try { await refrescarGaleriaDoMySQL(req.params.slug); } catch (e) {}
   const g = galerias.find(x => x.slug === req.params.slug);
   if (!g) return res.status(404).send('Galeria não encontrada.');
-  if (g.expiraEm && Date.parse(g.expiraEm) < Date.now()) {
+  if (galeriaExpirada(g)) {
     return res.status(410).send('Este link expirou.');
   }
   let html = fs.readFileSync(path.join(BASE, 'galeria.html'), 'utf8');
@@ -1268,11 +1279,12 @@ function normalizarTexto(s) {
 function acharGaleriaPublica(req) {
   const g = galerias.find(x => x.slug === req.params.slug);
   if (!g) return { erro: 404, msg: 'Galeria não encontrada.' };
-  if (g.expiraEm && Date.parse(g.expiraEm) < Date.now()) {
-    return { erro: 410, msg: 'Esta galeria expirou. Contacta o fotógrafo para reativar o acesso.', expirada: true, g };
-  }
-  if (g.selecao && g.selecao.finalizada) {
+  /* seleção concluída tem prioridade sobre a validade: o link fecha, não expira */
+  if (galeriaConcluida(g)) {
     return { erro: 410, msg: 'Esta seleção já foi concluída e o link está fechado. Contacta o fotógrafo para reativar o acesso.', fechada: true, g };
+  }
+  if (galeriaExpirada(g)) {
+    return { erro: 410, msg: 'Esta galeria expirou. Contacta o fotógrafo para reativar o acesso.', expirada: true, g };
   }
   return { g };
 }
